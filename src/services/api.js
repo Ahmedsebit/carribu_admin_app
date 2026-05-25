@@ -1,0 +1,14 @@
+import axios from 'axios';
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const api = axios.create({ baseURL: API_BASE, headers: {'Content-Type':'application/json'} });
+api.interceptors.request.use(config => { const t = localStorage.getItem('token'); if(t) config.headers.Authorization = `Bearer ${t}`; return config; });
+api.interceptors.response.use(r => r, err => { if(err.response?.status===401){localStorage.removeItem('token');localStorage.removeItem('user');window.location.href='/login';} return Promise.reject(err); });
+export const authAPI = { login: d => api.post('/auth/login',d), register: d => api.post('/auth/register',d), getMe: () => api.get('/auth/me') };
+export const schoolAPI = { getAll: () => api.get('/schools'), getById: id => api.get(`/schools/${id}`), getDashboard: id => api.get(`/schools/${id}/dashboard`), create: d => api.post('/schools',d), update: (id,d) => api.put(`/schools/${id}`,d) };
+export const vehicleAPI = { getAll: p => api.get('/vehicles',{params:p}), getById: id => api.get(`/vehicles/${id}`), getStats: () => api.get('/vehicles/stats/summary'), create: d => api.post('/vehicles',d), update: (id,d) => api.put(`/vehicles/${id}`,d), delete: id => api.delete(`/vehicles/${id}`) };
+export const studentAPI = { getAll: p => api.get('/students',{params:p}), getById: id => api.get(`/students/${id}`), create: d => api.post('/students',d), update: (id,d) => api.put(`/students/${id}`,d), delete: id => api.delete(`/students/${id}`), assignRoute: (id,d) => api.post(`/students/${id}/assign-route`,d) };
+export const routeAPI = { getAll: () => api.get('/routes'), getById: id => api.get(`/routes/${id}`), create: d => api.post('/routes',d), update: (id,d) => api.put(`/routes/${id}`,d), delete: id => api.delete(`/routes/${id}`), suggestStudents: d => api.post('/routes/suggest-students',d) };
+export const tripAPI = { getAll: p => api.get('/trips',{params:p}), create: d => api.post('/trips',d), start: id => api.put(`/trips/${id}/start`), end: id => api.put(`/trips/${id}/end`), logAction: (id,d) => api.post(`/trips/${id}/log`,d), getLogs: id => api.get(`/trips/${id}/logs`) };
+export const parentAPI = { getAll: () => api.get('/parents'), getById: id => api.get(`/parents/${id}`), create: d => api.post('/parents',d), update: (id,d) => api.put(`/parents/${id}`,d), delete: id => api.delete(`/parents/${id}`) };
+export const driverAPI = { getAll: () => api.get('/drivers'), getById: id => api.get(`/drivers/${id}`), create: d => api.post('/drivers',d), update: (id,d) => api.put(`/drivers/${id}`,d), delete: id => api.delete(`/drivers/${id}`) };
+export default api;
