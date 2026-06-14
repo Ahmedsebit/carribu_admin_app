@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { routeAPI, vehicleAPI, studentAPI, driverAPI } from '../services/api';
 import Modal from '../components/Modal';
-const empty={name:'',description:'',vehicleId:'',driverId:'',type:'both',grades:[],departureTime:'07:00',waypoints:[],studentIds:[]};
+const empty={name:'',description:'',vehicleId:'',driverId:'',type:'both',grades:[],departureTime:'07:00',outboundWaypoints:[],returnWaypoints:[],studentIds:[]};
 const GRADE_OPTIONS = ['Pre-K','K','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Form 1','Form 2','Form 3','Form 4'];
 
 const RouteMap = ({ waypoints, onWaypointsChange, suggestedStudents }) => {
@@ -100,13 +100,14 @@ const RoutesPage = () => {
   const fetch=async()=>{setLoading(true);try{const[r,v,s,d]=await Promise.all([routeAPI.getAll(),vehicleAPI.getAll(),studentAPI.getAll(),driverAPI.getAll()]);setRoutes(r.data.routes);setVehicles(v.data.vehicles.filter(v=>v.status==='active'));setStudents(s.data.students);setDrivers(d.data.drivers);}catch(e){}finally{setLoading(false);}};
   useEffect(()=>{fetch();},[]);
   const openAdd=()=>{setEditing(null);setForm(empty);setError('');setSuggested(null);setModalOpen(true);};
-  const openEdit=r=>{setEditing(r);setForm({name:r.name,description:r.description||'',vehicleId:r.vehicleId||'',driverId:r.driverId||'',type:r.type,grades:r.grades||[],departureTime:r.departureTime||'07:00',waypoints:r.waypoints||[],studentIds:r.students?.map(s=>s.id)||[]});setError('');setSuggested(null);setModalOpen(true);};
+  const openEdit=r=>{setEditing(r);setForm({name:r.name,description:r.description||'',vehicleId:r.vehicleId||'',driverId:r.driverId||'',type:r.type,grades:r.grades||[],departureTime:r.departureTime||'07:00',outboundWaypoints:(r.routeWaypoints||[]).filter(w=>w.leg==='outbound').sort((a,b)=>a.orderIndex-b.orderIndex).map(w=>({lat:parseFloat(w.lat),lng:parseFloat(w.lng),label:w.label,isStop:w.isStop})),returnWaypoints:(r.routeWaypoints||[]).filter(w=>w.leg==='return').sort((a,b)=>a.orderIndex-b.orderIndex).map(w=>({lat:parseFloat(w.lat),lng:parseFloat(w.lng),label:w.label,isStop:w.isStop})),studentIds:r.students?.map(s=>s.id)||[]});setError('');setSuggested(null);setModalOpen(true);};
   const save=async()=>{setError('');setSaving(true);try{const payload={...form,vehicleId:form.vehicleId||null,driverId:form.driverId||null};if(editing){await routeAPI.update(editing.id,payload);setSuccess('Updated!');}else{await routeAPI.create(payload);setSuccess('Created!');}setModalOpen(false);fetch();setTimeout(()=>setSuccess(''),3000);}catch(e){setError(e.response?.data?.error||'Failed');}finally{setSaving(false);}};
   const suggestStudents=async(grades,waypoints)=>{if(!grades||!waypoints)return;if(grades.length===0&&waypoints.length===0)return;setSuggesting(true);try{const{data}=await routeAPI.suggestStudents({grades,waypoints,radiusKm:3});setSuggested(data.students);return data.students;}catch(e){console.error(e);return[];}finally{setSuggesting(false);}};
   const autoSuggest=async(grades,waypoints)=>{if(grades.length===0||waypoints.length===0){setSuggested(null);return;}const results=await suggestStudents(grades,waypoints);if(results&&results.length>0){const ids=results.map(s=>s.id);setForm(p=>({...p,studentIds:[...new Set([...p.studentIds,...ids])]}));}};
   const addSuggestedStudents=()=>{if(!suggested)return;const ids=suggested.map(s=>s.id);setForm(p=>({...p,studentIds:[...new Set([...p.studentIds,...ids])]}));setSuccess(`${ids.length} students added from suggestions`);setTimeout(()=>setSuccess(''),3000);};
-  const handleGradesChange=(grade)=>{const newGrades=form.grades.includes(grade)?form.grades.filter(x=>x!==grade):[...form.grades,grade];setForm(p=>({...p,grades:newGrades}));autoSuggest(newGrades,form.waypoints);};
-  const handleWaypointsChange=(wps)=>{setForm(p=>({...p,waypoints:wps}));autoSuggest(form.grades,wps);};
+  const handleGradesChange=(grade)=>{const newGrades=form.grades.includes(grade)?form.grades.filter(x=>x!==grade):[...form.grades,grade];setForm(p=>({...p,grades:newGrades}));autoSuggest(newGrades,[...form.outboundWaypoints,...form.returnWaypoints]);};
+  const handleOutboundChange=(wps)=>{setForm(p=>({...p,outboundWaypoints:wps}));autoSuggest(form.grades,[...wps,...form.returnWaypoints]);};
+  const handleReturnChange=(wps)=>{setForm(p=>({...p,returnWaypoints:wps}));autoSuggest(form.grades,[...form.outboundWaypoints,...wps]);};
   const ch=(f,v)=>setForm(p=>({...p,[f]:v}));
   const toggleStudent=id=>setForm(p=>({...p,studentIds:p.studentIds.includes(id)?p.studentIds.filter(i=>i!==id):[...p.studentIds,id]}));
   return(<div>
@@ -153,15 +154,19 @@ const RoutesPage = () => {
           </label>)}
         </div>
       </div>
-      <div className="form-group"><label>Route Waypoints ({form.waypoints.length} points) — Click map to add stops</label>
-        <RouteMap waypoints={form.waypoints} onWaypointsChange={handleWaypointsChange} suggestedStudents={suggested}/>
-        {form.waypoints.length>0&&<div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>{form.waypoints.map((wp,i)=><span key={i} style={{background:'#f0fdf4',padding:'3px 8px',borderRadius:6,fontSize:'.75rem'}}>#{i+1}: ({wp.lat.toFixed(4)},{wp.lng.toFixed(4)}) <button onClick={()=>handleWaypointsChange(form.waypoints.filter((_,j)=>j!==i))} style={{background:'none',border:'none',color:'#dc2626',cursor:'pointer',fontWeight:'bold'}}>×</button></span>)}</div>}
+      <div className="form-group"><label>Outbound Waypoints ({form.outboundWaypoints.length} points) — A → B path</label>
+        <RouteMap waypoints={form.outboundWaypoints} onWaypointsChange={handleOutboundChange} suggestedStudents={suggested}/>
+        {form.outboundWaypoints.length>0&&<div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>{form.outboundWaypoints.map((wp,i)=><span key={i} style={{background:'#f0fdf4',padding:'3px 8px',borderRadius:6,fontSize:'.75rem'}}>#{i+1}: ({wp.lat.toFixed(4)},{wp.lng.toFixed(4)}) <button onClick={()=>handleOutboundChange(form.outboundWaypoints.filter((_,j)=>j!==i))} style={{background:'none',border:'none',color:'#dc2626',cursor:'pointer',fontWeight:'bold'}}>×</button></span>)}</div>}
+      </div>
+      <div className="form-group"><label>Return Waypoints ({form.returnWaypoints.length} points) — B → A path</label>
+        <RouteMap waypoints={form.returnWaypoints} onWaypointsChange={handleReturnChange} suggestedStudents={suggested}/>
+        {form.returnWaypoints.length>0&&<div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>{form.returnWaypoints.map((wp,i)=><span key={i} style={{background:'#fef3c7',padding:'3px 8px',borderRadius:6,fontSize:'.75rem'}}>#{i+1}: ({wp.lat.toFixed(4)},{wp.lng.toFixed(4)}) <button onClick={()=>handleReturnChange(form.returnWaypoints.filter((_,j)=>j!==i))} style={{background:'none',border:'none',color:'#dc2626',cursor:'pointer',fontWeight:'bold'}}>×</button></span>)}</div>}
       </div>
       <div className="form-group" style={{borderTop:'1px solid #e5e7eb',paddingTop:12}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
           <label>Students ({form.studentIds.length}) {suggesting&&<span style={{color:'#6b7280',fontSize:'.8rem'}}>— auto-matching...</span>}</label>
           <div style={{display:'flex',gap:8}}>
-            <button className="btn btn-outline btn-sm" onClick={()=>suggestStudents(form.grades,form.waypoints)} disabled={suggesting||form.waypoints.length===0||form.grades.length===0}>{suggesting?'Finding...':'🎯 Re-suggest'}</button>
+            <button className="btn btn-outline btn-sm" onClick={()=>suggestStudents(form.grades,[...form.outboundWaypoints,...form.returnWaypoints])} disabled={suggesting||(form.outboundWaypoints.length===0&&form.returnWaypoints.length===0)||form.grades.length===0}>{suggesting?'Finding...':'🎯 Re-suggest'}</button>
             {suggested&&<button className="btn btn-outline btn-sm" onClick={addSuggestedStudents}>✅ Add All ({suggested.length})</button>}
           </div>
         </div>

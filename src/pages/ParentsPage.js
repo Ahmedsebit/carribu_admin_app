@@ -1,8 +1,49 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { parentAPI, studentAPI } from '../services/api';
 import Modal from '../components/Modal';
 
-const emptyForm = { firstName: '', lastName: '', email: '', phone: '' };
+const LocationPicker = ({ lat, lng, onLocationChange }) => {
+  const mapRef = useRef(null);
+  const mapObjRef = useRef(null);
+  const markerRef = useRef(null);
+  const [googleReady, setGoogleReady] = useState(!!window.google?.maps);
+
+  useEffect(() => {
+    if (googleReady) return;
+    const interval = setInterval(() => {
+      if (window.google?.maps) { setGoogleReady(true); clearInterval(interval); }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [googleReady]);
+
+  useEffect(() => {
+    if (!googleReady || !mapRef.current) return;
+    const center = lat && lng ? { lat: parseFloat(lat), lng: parseFloat(lng) } : { lat: -1.2921, lng: 36.8219 };
+
+    if (!mapObjRef.current) {
+      mapObjRef.current = new window.google.maps.Map(mapRef.current, { center, zoom: 14, mapTypeControl: false });
+      mapObjRef.current.addListener('click', (e) => {
+        onLocationChange(e.latLng.lat(), e.latLng.lng());
+      });
+    }
+
+    if (markerRef.current) markerRef.current.setMap(null);
+    if (lat && lng) {
+      const pos = { lat: parseFloat(lat), lng: parseFloat(lng) };
+      markerRef.current = new window.google.maps.Marker({ position: pos, map: mapObjRef.current, draggable: true });
+      markerRef.current.addListener('dragend', () => {
+        const p = markerRef.current.getPosition();
+        onLocationChange(p.lat(), p.lng());
+      });
+      mapObjRef.current.panTo(pos);
+    }
+  }, [googleReady, lat, lng]);
+
+  if (!googleReady) return <p style={{ fontSize: 13, color: '#6b7280' }}>📍 Google Maps not loaded — enter coordinates manually above.</p>;
+  return <div ref={mapRef} style={{ width: '100%', height: 220, borderRadius: 8, marginTop: 8, marginBottom: 8 }} />;
+};
+
+const emptyForm = { firstName: '', lastName: '', email: '', phone: '', pickupAddress: '', pickupLat: '', pickupLng: '' };
 
 const ParentsPage = () => {
   const [parents, setParents] = useState([]);
@@ -35,7 +76,7 @@ const ParentsPage = () => {
   useEffect(() => { fetchParents(); }, [fetchParents]);
 
   const openAdd = () => { setEditing(null); setForm(emptyForm); setError(''); setTempPassword(''); setModalOpen(true); };
-  const openEdit = p => { setEditing(p); setForm({ firstName: p.firstName, lastName: p.lastName, email: p.email, phone: p.phone || '' }); setError(''); setTempPassword(''); setModalOpen(true); };
+  const openEdit = p => { setEditing(p); setForm({ firstName: p.firstName, lastName: p.lastName, email: p.email, phone: p.phone || '', pickupAddress: p.pickupAddress || '', pickupLat: p.pickupLat || '', pickupLng: p.pickupLng || '' }); setError(''); setTempPassword(''); setModalOpen(true); };
 
   const openDetail = async (p) => {
     try {
@@ -183,6 +224,12 @@ const ParentsPage = () => {
           <div className="form-group"><label>Email *</label><input className="form-control" type="email" value={form.email} onChange={e => ch('email', e.target.value)} disabled={!!editing} /></div>
           <div className="form-group"><label>Phone</label><input className="form-control" value={form.phone} onChange={e => ch('phone', e.target.value)} /></div>
         </div>
+        <div className="form-group"><label>Pickup Address</label><input className="form-control" placeholder="e.g. 123 Westlands Rd, Nairobi" value={form.pickupAddress} onChange={e => ch('pickupAddress', e.target.value)} /></div>
+        <div className="form-row">
+          <div className="form-group"><label>Pickup Latitude</label><input className="form-control" type="number" step="any" placeholder="-1.2921" value={form.pickupLat} onChange={e => ch('pickupLat', e.target.value)} /></div>
+          <div className="form-group"><label>Pickup Longitude</label><input className="form-control" type="number" step="any" placeholder="36.8219" value={form.pickupLng} onChange={e => ch('pickupLng', e.target.value)} /></div>
+        </div>
+        <LocationPicker lat={form.pickupLat} lng={form.pickupLng} onLocationChange={(lat, lng) => setForm(p => ({ ...p, pickupLat: lat, pickupLng: lng }))} />
         {!editing && <p style={{ fontSize: 13, color: '#6b7280', marginTop: 8 }}>A temporary password will be auto-generated and emailed to the parent.</p>}
       </Modal>
 
