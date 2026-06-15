@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { parentAPI, studentAPI } from '../services/api';
+import { parentAPI, studentAPI, importAPI } from '../services/api';
 import Modal from '../components/Modal';
 
 const LocationPicker = ({ lat, lng, onLocationChange }) => {
@@ -64,6 +64,12 @@ const ParentsPage = () => {
   const [newChildLast, setNewChildLast] = useState('');
   const [newChildGrade, setNewChildGrade] = useState('');
   const [addingChild, setAddingChild] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importPreview, setImportPreview] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importResults, setImportResults] = useState(null);
+  const [sendWhatsApp, setSendWhatsApp] = useState(true);
 
   const fetchParents = useCallback(async () => {
     setLoading(true);
@@ -153,6 +159,44 @@ const ParentsPage = () => {
     finally { setAddingChild(false); }
   };
 
+  const handleImportFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImportFile(file);
+    setImportPreview(null);
+    setImportResults(null);
+    try {
+      const { data } = await importAPI.preview(file);
+      setImportPreview(data);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to preview CSV');
+    }
+  };
+
+  const handleImport = async () => {
+    if (!importFile) return;
+    setImporting(true);
+    setError('');
+    try {
+      const { data } = await importAPI.importParentsStudents(importFile, sendWhatsApp);
+      setImportResults(data);
+      setSuccess(data.message);
+      fetchParents();
+      setTimeout(() => setSuccess(''), 8000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Import failed');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const closeImportModal = () => {
+    setImportModalOpen(false);
+    setImportFile(null);
+    setImportPreview(null);
+    setImportResults(null);
+  };
+
   const ch = (f, v) => setForm(p => ({ ...p, [f]: v }));
 
   const filtered = parents.filter(p => {
@@ -165,7 +209,10 @@ const ParentsPage = () => {
     <div>
       <div className="page-header">
         <div><h1>👪 Parent Management</h1><p>Manage parents and assign children</p></div>
-        <button className="btn btn-primary" onClick={openAdd}>+ Add Parent</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-outline" onClick={() => setImportModalOpen(true)}>📤 Import CSV</button>
+          <button className="btn btn-primary" onClick={openAdd}>+ Add Parent</button>
+        </div>
       </div>
 
       {success && <div className="alert alert-success">{success}</div>}
@@ -267,6 +314,122 @@ const ParentsPage = () => {
               <input className="form-control" placeholder="Grade" value={newChildGrade} onChange={e => setNewChildGrade(e.target.value)} style={{ width: 80 }} />
               <button className="btn btn-primary" onClick={createChild} disabled={addingChild || !newChildFirst || !newChildLast}>{addingChild ? 'Adding...' : 'Add'}</button>
             </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Import CSV Modal */}
+      <Modal isOpen={importModalOpen} onClose={closeImportModal} title="📤 Import Parents & Students from CSV"
+        footer={<>
+          <button className="btn btn-outline" onClick={closeImportModal}>Close</button>
+          {importPreview && !importResults && (
+            <button className="btn btn-primary" onClick={handleImport} disabled={importing}>
+              {importing ? 'Importing...' : `Import ${importPreview.totalParents} Parents & ${importPreview.totalStudents} Students`}
+            </button>
+          )}
+        </>}>
+        {error && <div className="alert alert-error">{error}</div>}
+
+        {!importResults ? (
+          <div>
+            <div className="form-group">
+              <label>Select CSV File</label>
+              <input type="file" accept=".csv" className="form-control" onChange={handleImportFileChange} />
+              <small style={{ color: '#6b7280' }}>Upload a CSV with columns: Parent Name, Phone Number, Child(ren), Grade/Class</small>
+            </div>
+
+            <div className="form-group" style={{ marginTop: 12 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input type="checkbox" checked={sendWhatsApp} onChange={e => setSendWhatsApp(e.target.checked)} />
+                Send login credentials via WhatsApp
+              </label>
+              <small style={{ color: '#6b7280' }}>Parents will receive their username (phone) and password via WhatsApp</small>
+            </div>
+
+            {importPreview && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
+                  <div style={{ background: '#eff6ff', padding: '12px 16px', borderRadius: 8, flex: 1 }}>
+                    <strong style={{ fontSize: 20 }}>{importPreview.totalParents}</strong>
+                    <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>Parents</p>
+                  </div>
+                  <div style={{ background: '#f0fdf4', padding: '12px 16px', borderRadius: 8, flex: 1 }}>
+                    <strong style={{ fontSize: 20 }}>{importPreview.totalStudents}</strong>
+                    <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>Students</p>
+                  </div>
+                </div>
+                <div style={{ maxHeight: 300, overflow: 'auto', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+                  <table style={{ width: '100%', fontSize: 13 }}>
+                    <thead><tr><th style={{ position: 'sticky', top: 0, background: '#f9fafb' }}>Parent</th><th style={{ position: 'sticky', top: 0, background: '#f9fafb' }}>Phone</th><th style={{ position: 'sticky', top: 0, background: '#f9fafb' }}>Children</th></tr></thead>
+                    <tbody>{importPreview.parents.map((p, i) => (
+                      <tr key={i}>
+                        <td>{p.name}</td>
+                        <td>{p.phone || <span style={{ color: '#ef4444' }}>Missing</span>}</td>
+                        <td>{p.children.map(c => `${c.name} (${c.grade || '?'})`).join(', ')}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div>
+            <div className="alert alert-success" style={{ marginBottom: 16 }}>{importResults.message}</div>
+
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+              <div style={{ background: '#eff6ff', padding: '10px 14px', borderRadius: 8 }}>
+                <strong>{importResults.parentsCreated}</strong> <span style={{ fontSize: 13 }}>parents created</span>
+              </div>
+              <div style={{ background: '#f0fdf4', padding: '10px 14px', borderRadius: 8 }}>
+                <strong>{importResults.studentsCreated}</strong> <span style={{ fontSize: 13 }}>students created</span>
+              </div>
+              <div style={{ background: '#fef3c7', padding: '10px 14px', borderRadius: 8 }}>
+                <strong>{importResults.whatsappSent}</strong> <span style={{ fontSize: 13 }}>WhatsApp sent</span>
+              </div>
+              {importResults.whatsappFailed > 0 && (
+                <div style={{ background: '#fef2f2', padding: '10px 14px', borderRadius: 8 }}>
+                  <strong>{importResults.whatsappFailed}</strong> <span style={{ fontSize: 13 }}>WhatsApp failed</span>
+                </div>
+              )}
+            </div>
+
+            {importResults.credentials && importResults.credentials.length > 0 && (
+              <div>
+                <h4 style={{ marginBottom: 8 }}>Generated Credentials</h4>
+                <small style={{ color: '#6b7280', display: 'block', marginBottom: 8 }}>Save these in case WhatsApp delivery fails</small>
+                <div style={{ maxHeight: 250, overflow: 'auto', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+                  <table style={{ width: '100%', fontSize: 13 }}>
+                    <thead><tr><th style={{ position: 'sticky', top: 0, background: '#f9fafb' }}>Name</th><th style={{ position: 'sticky', top: 0, background: '#f9fafb' }}>Username</th><th style={{ position: 'sticky', top: 0, background: '#f9fafb' }}>Password</th></tr></thead>
+                    <tbody>{importResults.credentials.map((c, i) => (
+                      <tr key={i}>
+                        <td>{c.name}</td>
+                        <td><code>{c.username}</code></td>
+                        <td><code>{c.password}</code></td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {importResults.skipped?.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <h4 style={{ marginBottom: 4, color: '#f59e0b' }}>Skipped ({importResults.skipped.length})</h4>
+                <ul style={{ fontSize: 13, color: '#6b7280', maxHeight: 100, overflow: 'auto' }}>
+                  {importResults.skipped.map((s, i) => <li key={i}>{s}</li>)}
+                </ul>
+              </div>
+            )}
+
+            {importResults.errors?.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <h4 style={{ marginBottom: 4, color: '#ef4444' }}>Errors ({importResults.errors.length})</h4>
+                <ul style={{ fontSize: 13, color: '#ef4444', maxHeight: 100, overflow: 'auto' }}>
+                  {importResults.errors.map((e, i) => <li key={i}>{e}</li>)}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </Modal>

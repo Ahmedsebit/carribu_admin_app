@@ -10,5 +10,9 @@ export const studentAPI = { getAll: p => api.get('/students',{params:p}), getByI
 export const routeAPI = { getAll: () => api.get('/routes'), getById: id => api.get(`/routes/${id}`), create: d => api.post('/routes',d), update: (id,d) => api.put(`/routes/${id}`,d), delete: id => api.delete(`/routes/${id}`), suggestStudents: d => api.post('/routes/suggest-students',d) };
 export const tripAPI = { getAll: p => api.get('/trips',{params:p}), create: d => api.post('/trips',d), start: id => api.put(`/trips/${id}/start`), end: id => api.put(`/trips/${id}/end`), logAction: (id,d) => api.post(`/trips/${id}/log`,d), getLogs: id => api.get(`/trips/${id}/logs`) };
 export const parentAPI = { getAll: () => api.get('/parents'), getById: id => api.get(`/parents/${id}`), create: d => api.post('/parents',d), update: (id,d) => api.put(`/parents/${id}`,d), delete: id => api.delete(`/parents/${id}`) };
+export const importAPI = {
+  preview: file => { const fd = new FormData(); fd.append('file', file); return api.post('/import/preview', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); },
+  importParentsStudents: (file, sendWhatsApp = true) => { const fd = new FormData(); fd.append('file', file); fd.append('sendWhatsApp', String(sendWhatsApp)); return api.post('/import/parents-students', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); },
+};
 export const driverAPI = { getAll: () => api.get('/drivers'), getById: id => api.get(`/drivers/${id}`), create: d => api.post('/drivers',d), update: (id,d) => api.put(`/drivers/${id}`,d), delete: id => api.delete(`/drivers/${id}`) };
 export default api;
