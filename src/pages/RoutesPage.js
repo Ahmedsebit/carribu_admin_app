@@ -8,10 +8,12 @@ const RouteMap = ({ waypoints, onWaypointsChange, suggestedStudents }) => {
   const mapRef = useRef(null);
   const mapObjRef = useRef(null);
   const markersRef = useRef([]);
-  const [mapLoaded, setMapLoaded] = useState(false);
+  const polylineRef = useRef(null);
+  const directionsRendererRef = useRef(null);
   const [googleReady, setGoogleReady] = useState(!!window.google?.maps);
+  const [useDirections, setUseDirections] = useState(true);
+  const [placingMode, setPlacingMode] = useState(null); // 'start', 'end', 'waypoint'
 
-  // Poll for Google Maps availability
   useEffect(() => {
     if (googleReady) return;
     const interval = setInterval(() => {
@@ -22,28 +24,42 @@ const RouteMap = ({ waypoints, onWaypointsChange, suggestedStudents }) => {
 
   useEffect(() => {
     if (!googleReady || !mapRef.current) return;
-    
-    // Clear old markers
+
+    // Clear old markers and lines
     markersRef.current.forEach(m => m.setMap(null));
     markersRef.current = [];
+    if (polylineRef.current) { polylineRef.current.setMap(null); polylineRef.current = null; }
+    if (directionsRendererRef.current) { directionsRendererRef.current.setMap(null); directionsRendererRef.current = null; }
 
     const center = waypoints.length > 0 ? { lat: waypoints[0].lat, lng: waypoints[0].lng } : { lat: -1.2921, lng: 36.8219 };
-    
+
     if (!mapObjRef.current) {
       mapObjRef.current = new window.google.maps.Map(mapRef.current, { center, zoom: 13, mapTypeControl: false });
-      mapObjRef.current.addListener('click', (e) => {
-        onWaypointsChange([...waypoints, { lat: e.latLng.lat(), lng: e.latLng.lng() }]);
-      });
     }
     const map = mapObjRef.current;
-    
-    // Draw existing waypoints
+
+    // Draw waypoints with distinct start/end markers
     waypoints.forEach((wp, i) => {
-      const marker = new window.google.maps.Marker({ position: { lat: wp.lat, lng: wp.lng }, map, label: `${i+1}`, draggable: true });
+      const isStart = i === 0;
+      const isEnd = i === waypoints.length - 1 && waypoints.length > 1;
+      let icon, label;
+
+      if (isStart) {
+        icon = { url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png', scaledSize: new window.google.maps.Size(40, 40) };
+        label = 'A';
+      } else if (isEnd) {
+        icon = { url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png', scaledSize: new window.google.maps.Size(40, 40) };
+        label = 'B';
+      } else {
+        icon = { url: 'http://maps.google.com/mapfiles/ms/icons/yellow-dot.png', scaledSize: new window.google.maps.Size(34, 34) };
+        label = `${i}`;
+      }
+
+      const marker = new window.google.maps.Marker({ position: { lat: wp.lat, lng: wp.lng }, map, label: { text: label, color: '#fff', fontWeight: 'bold', fontSize: '12px' }, icon, draggable: true, title: isStart ? 'Start Point' : isEnd ? 'End Point' : `Stop ${i}` });
       marker.addListener('dragend', () => {
         const pos = marker.getPosition();
         const updated = [...waypoints];
-        updated[i] = { lat: pos.lat(), lng: pos.lng() };
+        updated[i] = { ...updated[i], lat: pos.lat(), lng: pos.lng() };
         onWaypointsChange(updated);
       });
       markersRef.current.push(marker);
@@ -57,22 +73,85 @@ const RouteMap = ({ waypoints, onWaypointsChange, suggestedStudents }) => {
       });
     }
 
-    // Draw polyline between waypoints
+    // Draw route
     if (waypoints.length > 1) {
-      new window.google.maps.Polyline({ path: waypoints.map(wp => ({ lat: wp.lat, lng: wp.lng })), map, strokeColor: '#16a34a', strokeWeight: 3 });
-    }
-    setMapLoaded(true);
-  }, [googleReady, waypoints, suggestedStudents]);
+      if (useDirections) {
+        const directionsService = new window.google.maps.DirectionsService();
+        const origin = waypoints[0];
+        const destination = waypoints[waypoints.length - 1];
+        const intermediateWaypoints = waypoints.slice(1, -1).map(wp => ({ location: new window.google.maps.LatLng(wp.lat, wp.lng), stopover: true }));
 
-  // Fallback if Google Maps not loaded
+        directionsService.route({
+          origin: new window.google.maps.LatLng(origin.lat, origin.lng),
+          destination: new window.google.maps.LatLng(destination.lat, destination.lng),
+          waypoints: intermediateWaypoints,
+          travelMode: window.google.maps.TravelMode.DRIVING,
+          optimizeWaypoints: false,
+        }, (result, status) => {
+          if (status === 'OK') {
+            directionsRendererRef.current = new window.google.maps.DirectionsRenderer({
+              map, directions: result, suppressMarkers: true,
+              polylineOptions: { strokeColor: '#16a34a', strokeWeight: 4, strokeOpacity: 0.8 }
+            });
+          } else {
+            polylineRef.current = new window.google.maps.Polyline({ path: waypoints.map(wp => ({ lat: wp.lat, lng: wp.lng })), map, strokeColor: '#16a34a', strokeWeight: 3 });
+          }
+        });
+      } else {
+        polylineRef.current = new window.google.maps.Polyline({ path: waypoints.map(wp => ({ lat: wp.lat, lng: wp.lng })), map, strokeColor: '#16a34a', strokeWeight: 3 });
+      }
+
+      const bounds = new window.google.maps.LatLngBounds();
+      waypoints.forEach(wp => bounds.extend({ lat: wp.lat, lng: wp.lng }));
+      map.fitBounds(bounds, 50);
+    }
+  }, [googleReady, waypoints, suggestedStudents, useDirections]);
+
+  // Handle map clicks based on placing mode
+  useEffect(() => {
+    if (!googleReady || !mapObjRef.current) return;
+    const map = mapObjRef.current;
+    const listener = map.addListener('click', (e) => {
+      const point = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+      if (placingMode === 'start') {
+        const updated = waypoints.length > 0 ? [point, ...waypoints.slice(1)] : [point];
+        onWaypointsChange(updated);
+        setPlacingMode(null);
+      } else if (placingMode === 'end') {
+        if (waypoints.length === 0) {
+          onWaypointsChange([point]);
+        } else {
+          const updated = [...waypoints.slice(0, -1), point];
+          // If only start exists, append; otherwise replace last
+          if (waypoints.length === 1) {
+            onWaypointsChange([...waypoints, point]);
+          } else {
+            onWaypointsChange([...waypoints.slice(0, waypoints.length - 1), point]);
+          }
+        }
+        setPlacingMode(null);
+      } else if (placingMode === 'waypoint') {
+        if (waypoints.length < 2) {
+          onWaypointsChange([...waypoints, point]);
+        } else {
+          // Insert before the end point
+          const updated = [...waypoints.slice(0, -1), point, waypoints[waypoints.length - 1]];
+          onWaypointsChange(updated);
+        }
+        // Stay in waypoint mode so user can keep adding
+      }
+    });
+    return () => window.google.maps.event.removeListener(listener);
+  }, [googleReady, placingMode, waypoints, onWaypointsChange]);
+
   if (!googleReady) {
     return (
       <div style={{ border: '2px dashed #d1d5db', borderRadius: 12, padding: 16, marginBottom: 12 }}>
-        <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 8 }}>📍 <strong>Route Waypoints</strong> — Click to add points</p>
+        <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 8 }}>📍 <strong>Route Waypoints</strong></p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
           {waypoints.map((wp, i) => (
-            <span key={i} style={{ background: '#dcfce7', padding: '4px 8px', borderRadius: 6, fontSize: 12 }}>
-              #{i+1}: {wp.lat.toFixed(4)}, {wp.lng.toFixed(4)}
+            <span key={i} style={{ background: i === 0 ? '#dcfce7' : i === waypoints.length - 1 ? '#fee2e2' : '#fef9c3', padding: '4px 8px', borderRadius: 6, fontSize: 12 }}>
+              {i === 0 ? '🟢 Start' : i === waypoints.length - 1 ? '🔴 End' : `📍 Stop ${i}`}: {wp.lat.toFixed(4)}, {wp.lng.toFixed(4)}
               <button onClick={() => onWaypointsChange(waypoints.filter((_, j) => j !== i))} style={{ marginLeft: 4, background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontWeight: 'bold' }}>×</button>
             </span>
           ))}
@@ -90,7 +169,33 @@ const RouteMap = ({ waypoints, onWaypointsChange, suggestedStudents }) => {
     );
   }
 
-  return <div ref={mapRef} style={{ width: '100%', height: 300, borderRadius: 12, marginBottom: 12 }} />;
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button className={`btn btn-sm ${placingMode === 'start' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setPlacingMode(placingMode === 'start' ? null : 'start')}>
+          🟢 {waypoints.length > 0 ? 'Move Start' : 'Set Start'}
+        </button>
+        <button className={`btn btn-sm ${placingMode === 'end' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setPlacingMode(placingMode === 'end' ? null : 'end')}>
+          🔴 {waypoints.length > 1 ? 'Move End' : 'Set End'}
+        </button>
+        <button className={`btn btn-sm ${placingMode === 'waypoint' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setPlacingMode(placingMode === 'waypoint' ? null : 'waypoint')}>
+          📍 Add Waypoint
+        </button>
+        {waypoints.length > 0 && <button className="btn btn-sm btn-danger" onClick={() => onWaypointsChange([])}>🗑️ Clear All</button>}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer', marginLeft: 'auto' }}>
+          <input type="checkbox" checked={useDirections} onChange={e => setUseDirections(e.target.checked)} />
+          Show driving route
+        </label>
+      </div>
+      {placingMode && (
+        <div style={{ padding: '6px 12px', background: placingMode === 'start' ? '#dcfce7' : placingMode === 'end' ? '#fee2e2' : '#fef9c3', borderRadius: 6, marginBottom: 8, fontSize: 13 }}>
+          👆 Click on the map to {placingMode === 'start' ? 'set the start point' : placingMode === 'end' ? 'set the end point' : 'add a waypoint'}
+          {placingMode === 'waypoint' && ' (keep clicking to add more, then click "Add Waypoint" button again to stop)'}
+        </div>
+      )}
+      <div ref={mapRef} style={{ width: '100%', height: 350, borderRadius: 12, marginBottom: 12, cursor: placingMode ? 'crosshair' : 'default' }} />
+    </div>
+  );
 };
 
 const RoutesPage = () => {
@@ -156,11 +261,11 @@ const RoutesPage = () => {
       </div>
       <div className="form-group"><label>Outbound Waypoints ({form.outboundWaypoints.length} points) — A → B path</label>
         <RouteMap waypoints={form.outboundWaypoints} onWaypointsChange={handleOutboundChange} suggestedStudents={suggested}/>
-        {form.outboundWaypoints.length>0&&<div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>{form.outboundWaypoints.map((wp,i)=><span key={i} style={{background:'#f0fdf4',padding:'3px 8px',borderRadius:6,fontSize:'.75rem'}}>#{i+1}: ({wp.lat.toFixed(4)},{wp.lng.toFixed(4)}) <button onClick={()=>handleOutboundChange(form.outboundWaypoints.filter((_,j)=>j!==i))} style={{background:'none',border:'none',color:'#dc2626',cursor:'pointer',fontWeight:'bold'}}>×</button></span>)}</div>}
+        {form.outboundWaypoints.length>0&&<div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>{form.outboundWaypoints.map((wp,i)=><span key={i} style={{background:i===0?'#dcfce7':i===form.outboundWaypoints.length-1?'#fee2e2':'#fef9c3',padding:'3px 8px',borderRadius:6,fontSize:'.75rem'}}>{i===0?'🟢 Start':i===form.outboundWaypoints.length-1?'🔴 End':`📍 Stop ${i}`}: ({wp.lat.toFixed(4)},{wp.lng.toFixed(4)}) <button onClick={()=>handleOutboundChange(form.outboundWaypoints.filter((_,j)=>j!==i))} style={{background:'none',border:'none',color:'#dc2626',cursor:'pointer',fontWeight:'bold'}}>×</button></span>)}</div>}
       </div>
       <div className="form-group"><label>Return Waypoints ({form.returnWaypoints.length} points) — B → A path</label>
         <RouteMap waypoints={form.returnWaypoints} onWaypointsChange={handleReturnChange} suggestedStudents={suggested}/>
-        {form.returnWaypoints.length>0&&<div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>{form.returnWaypoints.map((wp,i)=><span key={i} style={{background:'#fef3c7',padding:'3px 8px',borderRadius:6,fontSize:'.75rem'}}>#{i+1}: ({wp.lat.toFixed(4)},{wp.lng.toFixed(4)}) <button onClick={()=>handleReturnChange(form.returnWaypoints.filter((_,j)=>j!==i))} style={{background:'none',border:'none',color:'#dc2626',cursor:'pointer',fontWeight:'bold'}}>×</button></span>)}</div>}
+        {form.returnWaypoints.length>0&&<div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>{form.returnWaypoints.map((wp,i)=><span key={i} style={{background:i===0?'#dcfce7':i===form.returnWaypoints.length-1?'#fee2e2':'#fef9c3',padding:'3px 8px',borderRadius:6,fontSize:'.75rem'}}>{i===0?'🟢 Start':i===form.returnWaypoints.length-1?'🔴 End':`📍 Stop ${i}`}: ({wp.lat.toFixed(4)},{wp.lng.toFixed(4)}) <button onClick={()=>handleReturnChange(form.returnWaypoints.filter((_,j)=>j!==i))} style={{background:'none',border:'none',color:'#dc2626',cursor:'pointer',fontWeight:'bold'}}>×</button></span>)}</div>}
       </div>
       <div className="form-group" style={{borderTop:'1px solid #e5e7eb',paddingTop:12}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
