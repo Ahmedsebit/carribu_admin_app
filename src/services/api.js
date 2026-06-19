@@ -14,5 +14,5 @@ export const importAPI = {
   preview: file => { const fd = new FormData(); fd.append('file', file); return api.post('/import/preview', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); },
   importParentsStudents: (file, sendWhatsApp = true) => { const fd = new FormData(); fd.append('file', file); fd.append('sendWhatsApp', String(sendWhatsApp)); return api.post('/import/parents-students', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); },
 };
-export const driverAPI = { getAll: () => api.get('/drivers'), getById: id => api.get(`/drivers/${id}`), create: d => api.post('/drivers',d), update: (id,d) => api.put(`/drivers/${id}`,d), delete: id => api.delete(`/drivers/${id}`) };
+export const driverAPI = { getAll: () => api.get('/drivers'), getById: id => api.get(`/drivers/${id}`), create: d => api.post('/drivers',d), update: (id,d) => api.put(`/drivers/${id}`,d), delete: id => api.delete(`/drivers/${id}`), resetPassword: id => api.post(`/drivers/${id}/reset-password`) };
 export default api;

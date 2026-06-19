@@ -50,6 +50,19 @@ const DriversPage = () => {
     } catch (e) { setError(e.response?.data?.error || 'Failed to save'); } finally { setSaving(false); }
   };
 
+  const resetPassword = async id => {
+    if (!window.confirm('Reset this driver\'s password? A new password will be generated and emailed to them.')) return;
+    try {
+      const { data } = await driverAPI.resetPassword(id);
+      if (data.tempPassword) setTempPassword(data.tempPassword);
+      if (data.previewUrl) {
+        window.open(data.previewUrl, '_blank');
+      }
+      setSuccess(data.emailSent ? 'Password reset! New password emailed to driver.' : 'Password reset! (Email delivery could not be confirmed)');
+      setTimeout(() => setSuccess(''), 5000);
+    } catch (e) { setError(e.response?.data?.error || 'Failed to reset password'); setTimeout(() => setError(''), 5000); }
+  };
+
   const deactivate = async id => {
     if (!window.confirm('Deactivate this driver?')) return;
     try { await driverAPI.delete(id); setSuccess('Driver deactivated.'); fetchDrivers(); setTimeout(() => setSuccess(''), 3000); } catch (e) { console.error(e); }
@@ -71,6 +84,7 @@ const DriversPage = () => {
       </div>
 
       {success && <div className="alert alert-success">{success}</div>}
+      {error && !modalOpen && <div className="alert alert-error">{error}</div>}
       {tempPassword && (
         <div className="alert alert-success" style={{ background: '#fef3c7', border: '1px solid #f59e0b', color: '#92400e' }}>
           <strong>Temporary Password:</strong> {tempPassword} <br />
@@ -103,6 +117,7 @@ const DriversPage = () => {
                   <td>
                     <div className="btn-group">
                       <button className="btn btn-outline btn-sm" onClick={() => openEdit(d)}>Edit</button>
+                      <button className="btn btn-outline btn-sm" style={{ color: '#d97706', borderColor: '#d97706' }} onClick={() => resetPassword(d.id)}>Reset Password</button>
                       <button className="btn btn-danger btn-sm" onClick={() => deactivate(d.id)}>Deactivate</button>
                     </div>
                   </td>
