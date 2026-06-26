@@ -55,7 +55,6 @@ const ParentsPage = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [tempPassword, setTempPassword] = useState('');
   const [detailModal, setDetailModal] = useState(false);
   const [selectedParent, setSelectedParent] = useState(null);
   const [allStudents, setAllStudents] = useState([]);
@@ -69,7 +68,6 @@ const ParentsPage = () => {
   const [importPreview, setImportPreview] = useState(null);
   const [importing, setImporting] = useState(false);
   const [importResults, setImportResults] = useState(null);
-  const [sendWhatsApp, setSendWhatsApp] = useState(true);
 
   const fetchParents = useCallback(async () => {
     setLoading(true);
@@ -81,8 +79,8 @@ const ParentsPage = () => {
 
   useEffect(() => { fetchParents(); }, [fetchParents]);
 
-  const openAdd = () => { setEditing(null); setForm(emptyForm); setError(''); setTempPassword(''); setModalOpen(true); };
-  const openEdit = p => { setEditing(p); setForm({ firstName: p.firstName, lastName: p.lastName, email: p.email, phone: p.phone || '', pickupAddress: p.pickupAddress || '', pickupLat: p.pickupLat || '', pickupLng: p.pickupLng || '' }); setError(''); setTempPassword(''); setModalOpen(true); };
+  const openAdd = () => { setEditing(null); setForm(emptyForm); setError(''); setModalOpen(true); };
+  const openEdit = p => { setEditing(p); setForm({ firstName: p.firstName, lastName: p.lastName, email: p.email, phone: p.phone || '', pickupAddress: p.pickupAddress || '', pickupLat: p.pickupLat || '', pickupLng: p.pickupLng || '' }); setError(''); setModalOpen(true); };
 
   const openDetail = async (p) => {
     try {
@@ -95,20 +93,16 @@ const ParentsPage = () => {
   };
 
   const save = async () => {
-    setError(''); setSaving(true);
+    setError('');
+    if (!editing && !form.phone?.trim()) { setError('Phone number is required.'); return; }
+    setSaving(true);
     try {
       if (editing) {
         await parentAPI.update(editing.id, form);
         setSuccess('Parent updated!');
       } else {
-        const { data } = await parentAPI.create(form);
-        if (data.tempPassword) setTempPassword(data.tempPassword);
-        if (data.previewUrl) {
-          setSuccess(`Parent created! Email sent — preview: ${data.previewUrl}`);
-          window.open(data.previewUrl, '_blank');
-        } else {
-          setSuccess('Parent created! Welcome email sent.');
-        }
+        await parentAPI.create(form);
+        setSuccess('Parent added! They can set their password in the app using their phone number.');
       }
       setModalOpen(false); fetchParents();
       setTimeout(() => setSuccess(''), 5000);
@@ -178,7 +172,7 @@ const ParentsPage = () => {
     setImporting(true);
     setError('');
     try {
-      const { data } = await importAPI.importParentsStudents(importFile, sendWhatsApp);
+      const { data } = await importAPI.importParentsStudents(importFile);
       setImportResults(data);
       setSuccess(data.message);
       fetchParents();
@@ -216,12 +210,6 @@ const ParentsPage = () => {
       </div>
 
       {success && <div className="alert alert-success">{success}</div>}
-      {tempPassword && (
-        <div className="alert alert-success" style={{ background: '#fef3c7', border: '1px solid #f59e0b', color: '#92400e' }}>
-          <strong>Temporary Password:</strong> {tempPassword} <br />
-          <small>This was included in the welcome email. Save it in case the email doesn't arrive.</small>
-        </div>
-      )}
 
       <div className="stats-grid">
         <div className="stat-card"><div className="stat-icon blue">👪</div><div className="stat-info"><h4>{parents.length}</h4><p>Total Parents</p></div></div>
@@ -269,7 +257,7 @@ const ParentsPage = () => {
         </div>
         <div className="form-row">
           <div className="form-group"><label>Email *</label><input className="form-control" type="email" value={form.email} onChange={e => ch('email', e.target.value)} disabled={!!editing} /></div>
-          <div className="form-group"><label>Phone</label><input className="form-control" value={form.phone} onChange={e => ch('phone', e.target.value)} /></div>
+          <div className="form-group"><label>Phone *</label><input className="form-control" placeholder="e.g. 0712345678" value={form.phone} onChange={e => ch('phone', e.target.value)} /></div>
         </div>
         <div className="form-group"><label>Pickup Address</label><input className="form-control" placeholder="e.g. 123 Westlands Rd, Nairobi" value={form.pickupAddress} onChange={e => ch('pickupAddress', e.target.value)} /></div>
         <div className="form-row">
@@ -338,12 +326,8 @@ const ParentsPage = () => {
               <small style={{ color: '#6b7280' }}>Upload a CSV with columns: Parent Name, Phone Number, Child(ren), Grade/Class</small>
             </div>
 
-            <div className="form-group" style={{ marginTop: 12 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                <input type="checkbox" checked={sendWhatsApp} onChange={e => setSendWhatsApp(e.target.checked)} />
-                Send login credentials via WhatsApp
-              </label>
-              <small style={{ color: '#6b7280' }}>Parents will receive their username (phone) and password via WhatsApp</small>
+            <div style={{ marginTop: 12, padding: '10px 12px', background: '#eff6ff', borderRadius: 8, fontSize: 13, color: '#1e40af' }}>
+              Imported parents set their own password in the app using their phone number — no credentials are sent.
             </div>
 
             {importPreview && (
@@ -384,28 +368,19 @@ const ParentsPage = () => {
               <div style={{ background: '#f0fdf4', padding: '10px 14px', borderRadius: 8 }}>
                 <strong>{importResults.studentsCreated}</strong> <span style={{ fontSize: 13 }}>students created</span>
               </div>
-              <div style={{ background: '#fef3c7', padding: '10px 14px', borderRadius: 8 }}>
-                <strong>{importResults.whatsappSent}</strong> <span style={{ fontSize: 13 }}>WhatsApp sent</span>
-              </div>
-              {importResults.whatsappFailed > 0 && (
-                <div style={{ background: '#fef2f2', padding: '10px 14px', borderRadius: 8 }}>
-                  <strong>{importResults.whatsappFailed}</strong> <span style={{ fontSize: 13 }}>WhatsApp failed</span>
-                </div>
-              )}
             </div>
 
-            {importResults.credentials && importResults.credentials.length > 0 && (
+            {importResults.created && importResults.created.length > 0 && (
               <div>
-                <h4 style={{ marginBottom: 8 }}>Generated Credentials</h4>
-                <small style={{ color: '#6b7280', display: 'block', marginBottom: 8 }}>Save these in case WhatsApp delivery fails</small>
+                <h4 style={{ marginBottom: 8 }}>Parents Added</h4>
+                <small style={{ color: '#6b7280', display: 'block', marginBottom: 8 }}>They set their own password in the app using their phone number</small>
                 <div style={{ maxHeight: 250, overflow: 'auto', border: '1px solid #e5e7eb', borderRadius: 8 }}>
                   <table style={{ width: '100%', fontSize: 13 }}>
-                    <thead><tr><th style={{ position: 'sticky', top: 0, background: '#f9fafb' }}>Name</th><th style={{ position: 'sticky', top: 0, background: '#f9fafb' }}>Username</th><th style={{ position: 'sticky', top: 0, background: '#f9fafb' }}>Password</th></tr></thead>
-                    <tbody>{importResults.credentials.map((c, i) => (
+                    <thead><tr><th style={{ position: 'sticky', top: 0, background: '#f9fafb' }}>Name</th><th style={{ position: 'sticky', top: 0, background: '#f9fafb' }}>Phone</th></tr></thead>
+                    <tbody>{importResults.created.map((c, i) => (
                       <tr key={i}>
                         <td>{c.name}</td>
-                        <td><code>{c.username}</code></td>
-                        <td><code>{c.password}</code></td>
+                        <td><code>{c.phone || '-'}</code></td>
                       </tr>
                     ))}</tbody>
                   </table>
