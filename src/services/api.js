@@ -9,6 +9,7 @@ export const vehicleAPI = { getAll: p => api.get('/vehicles',{params:p}), getByI
 export const studentAPI = { getAll: p => api.get('/students',{params:p}), getById: id => api.get(`/students/${id}`), create: d => api.post('/students',d), update: (id,d) => api.put(`/students/${id}`,d), delete: id => api.delete(`/students/${id}`), assignRoute: (id,d) => api.post(`/students/${id}/assign-route`,d) };
 export const routeAPI = { getAll: () => api.get('/routes'), getById: id => api.get(`/routes/${id}`), create: d => api.post('/routes',d), update: (id,d) => api.put(`/routes/${id}`,d), delete: id => api.delete(`/routes/${id}`), suggestStudents: d => api.post('/routes/suggest-students',d) };
 export const tripAPI = { getAll: p => api.get('/trips',{params:p}), create: d => api.post('/trips',d), start: id => api.put(`/trips/${id}/start`), end: id => api.put(`/trips/${id}/end`), logAction: (id,d) => api.post(`/trips/${id}/log`,d), getLogs: id => api.get(`/trips/${id}/logs`) };
+export const locationAPI = { getBusLocation: tripId => api.get(`/location/bus/${tripId}`), getHistory: tripId => api.get(`/location/history/${tripId}`) };
 export const parentAPI = { getAll: () => api.get('/parents'), getById: id => api.get(`/parents/${id}`), create: d => api.post('/parents',d), update: (id,d) => api.put(`/parents/${id}`,d), delete: id => api.delete(`/parents/${id}`) };
 export const importAPI = {
   preview: file => { const fd = new FormData(); fd.append('file', file); return api.post('/import/preview', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); },
