@@ -22,6 +22,10 @@ const TripsPage = () => {
   // Poll live trip data every 10 seconds while the live view is open
   useEffect(()=>{if(!liveModalOpen||!liveTrip)return;const i=setInterval(()=>fetchLive(liveTrip),10000);return()=>clearInterval(i);},[liveModalOpen,liveTrip]);
   const studentStatus=(studentId)=>{const sl=liveLogs.filter(l=>l.studentId===studentId);if(sl.find(l=>l.action==='absent'))return{key:'absent',label:'Absent',cls:'badge-absent',icon:'❌'};if(sl.find(l=>l.action==='check_out'))return{key:'dropped',label:'Dropped off',cls:'badge-completed',icon:'📤'};if(sl.find(l=>l.action==='check_in'))return{key:'onbus',label:'Picked up',cls:'badge-onbus',icon:'✅'};if(sl.find(l=>l.action==='arrived'))return{key:'arrived',label:'Bus arrived',cls:'badge-morning',icon:'📍'};return{key:'waiting',label:'Waiting',cls:'badge-waiting',icon:'⏳'};};
+  const fmtTime=t=>t?new Date(t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}):'—';
+  const fmtDur=ms=>{if(ms==null||ms<0)return '—';const s=Math.round(ms/1000);if(s<60)return `${s}s`;const m=Math.floor(s/60);return `${m}m ${s%60}s`;};
+  // Build a per-student pickup report from raw trip logs (for the selected trip's roster)
+  const buildReport=()=>{const roster=[...(selectedTrip?.route?.students||[])].sort((a,b)=>(a.RouteStudent?.stopOrder||0)-(b.RouteStudent?.stopOrder||0));const first=(sid,act)=>{const l=tripLogs.filter(x=>x.studentId===sid&&x.action===act).sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp))[0];return l?l.timestamp:null;};return roster.map(s=>{const arrived=first(s.id,'arrived');const picked=first(s.id,'check_in');const dropped=first(s.id,'check_out');const absent=!!first(s.id,'absent');const wait=(arrived&&picked)?(new Date(picked)-new Date(arrived)):null;let status;if(absent)status={label:'Absent',cls:'badge-absent',icon:'❌'};else if(dropped)status={label:'Dropped off',cls:'badge-completed',icon:'📤'};else if(picked)status={label:'Picked up',cls:'badge-onbus',icon:'✅'};else if(arrived)status={label:'Bus arrived',cls:'badge-morning',icon:'📍'};else status={label:'No record',cls:'badge-waiting',icon:'—'};return{student:s,arrived,picked,dropped,absent,wait,status};});};
   const st={total:trips.length,completed:trips.filter(t=>t.status==='completed').length,inProgress:trips.filter(t=>t.status==='in_progress').length,scheduled:trips.filter(t=>t.status==='scheduled').length};
   const activeTrips=trips.filter(t=>t.status==='in_progress');
   const studentSt=activeTrips.reduce((acc,t)=>{const s=t.studentStats||{};acc.total+=s.total||0;acc.onBus+=s.onBus||0;acc.droppedOff+=s.droppedOff||0;acc.absent+=s.absent||0;acc.arrived+=s.arrived||0;acc.pending+=s.pending||0;return acc;},{total:0,onBus:0,droppedOff:0,absent:0,arrived:0,pending:0});
@@ -48,15 +52,33 @@ const TripsPage = () => {
           <td><span className={`badge ${t.type==='morning_pickup'?'badge-morning':'badge-afternoon'}`}>{t.type==='morning_pickup'?'🌅 Morning':'🌇 Afternoon'}</span></td><td>{t.scheduledDate}</td>
           <td>{t.studentStats?<span style={{fontSize:'.8rem'}}>{t.studentStats.total} total{t.status==='in_progress'?` · ${t.studentStats.onBus} on bus · ${t.studentStats.droppedOff} done · ${t.studentStats.absent} absent`:''}</span>:'-'}</td>
           <td><span className={`badge badge-${t.status.replace('_','-')}`}>{t.status.replace('_',' ')}</span></td>
-          <td><div className="btn-group">{t.status==='scheduled'&&<button className="btn btn-success btn-sm" onClick={()=>start(t.id)}>▶ Start</button>}{t.status==='in_progress'&&<button className="btn btn-primary btn-sm" onClick={()=>openLive(t)}>📡 Live</button>}{t.status==='in_progress'&&<button className="btn btn-outline btn-sm" onClick={()=>end(t.id)}>⏹ End</button>}<button className="btn btn-outline btn-sm" onClick={()=>viewLogs(t)}>📋 Logs</button></div></td></tr>)}</tbody></table>
+          <td><div className="btn-group">{t.status==='scheduled'&&<button className="btn btn-success btn-sm" onClick={()=>start(t.id)}>▶ Start</button>}{t.status==='in_progress'&&<button className="btn btn-primary btn-sm" onClick={()=>openLive(t)}>📡 Live</button>}{t.status==='in_progress'&&<button className="btn btn-outline btn-sm" onClick={()=>end(t.id)}>⏹ End</button>}<button className="btn btn-outline btn-sm" onClick={()=>viewLogs(t)}>📋 Report</button></div></td></tr>)}</tbody></table>
     }</div></div>
     <Modal isOpen={modalOpen} onClose={()=>setModalOpen(false)} title="Schedule Trip" footer={<><button className="btn btn-outline" onClick={()=>setModalOpen(false)}>Cancel</button><button className="btn btn-primary" onClick={schedule} disabled={saving}>{saving?'Scheduling...':'Schedule'}</button></>}>
       {error&&<div className="alert alert-error">{error}</div>}
       <div className="form-group"><label>Route *</label><select className="form-control" value={form.routeId} onChange={e=>setForm(p=>({...p,routeId:e.target.value}))}><option value="">-- Select --</option>{routes.map(r=><option key={r.id} value={r.id}>{r.name} ({r.students?.length||0} students)</option>)}</select></div>
       <div className="form-row"><div className="form-group"><label>Type *</label><select className="form-control" value={form.type} onChange={e=>setForm(p=>({...p,type:e.target.value}))}><option value="morning_pickup">🌅 Morning</option><option value="afternoon_dropoff">🌇 Afternoon</option></select></div><div className="form-group"><label>Date *</label><input type="date" className="form-control" value={form.scheduledDate} onChange={e=>setForm(p=>({...p,scheduledDate:e.target.value}))}/></div></div>
     </Modal>
-    <Modal isOpen={logModalOpen} onClose={()=>setLogModalOpen(false)} title={`Logs — ${selectedTrip?.route?.name||''}`}>
-      {tripLogs.length===0?<div className="empty-state"><p>No logs yet.</p></div>:<div className="table-container"><table><thead><tr><th>Time</th><th>Student</th><th>Action</th><th>Notes</th></tr></thead><tbody>{tripLogs.map(l=><tr key={l.id}><td>{new Date(l.timestamp).toLocaleTimeString()}</td><td>{l.student?.firstName} {l.student?.lastName}</td><td><span className={`badge ${l.action==='check_in'?'badge-active':l.action==='check_out'?'badge-completed':l.action==='arrived'?'badge-morning':'badge-cancelled'}`}>{l.action==='check_in'?'📥 In':l.action==='check_out'?'📤 Out':l.action==='arrived'?'📍 Arrived':'❌ Absent'}</span></td><td>{l.notes||'-'}</td></tr>)}</tbody></table></div>}
+    <Modal isOpen={logModalOpen} onClose={()=>setLogModalOpen(false)} wide title={`📋 Trip Report — ${selectedTrip?.route?.name||''}`}>
+      {(()=>{const rep=buildReport();const picked=rep.filter(r=>r.picked||r.dropped).length;const absent=rep.filter(r=>r.absent).length;const waits=rep.filter(r=>r.wait!=null).map(r=>r.wait);const avgWait=waits.length?waits.reduce((a,b)=>a+b,0)/waits.length:null;return(<>
+        <div className="live-meta">
+          <span><strong>{selectedTrip?.scheduledDate||''}</strong> · <span className={`badge ${selectedTrip?.type==='morning_pickup'?'badge-morning':'badge-afternoon'}`}>{selectedTrip?.type==='morning_pickup'?'🌅 Morning':'🌇 Afternoon'}</span></span>
+          <span>👤 {selectedTrip?.driver?`${selectedTrip.driver.firstName} ${selectedTrip.driver.lastName}`:'—'}</span>
+          <span>✅ {picked} {selectedTrip?.type==='afternoon_dropoff'?'dropped off':'picked up'}</span>
+          <span>❌ {absent} absent</span>
+          {avgWait!=null&&<span>⏱️ Avg wait {fmtDur(avgWait)}</span>}
+        </div>
+        {rep.length===0?<div className="empty-state"><p>No students on this route.</p></div>:
+        <div className="table-container"><table><thead><tr><th>Stop</th><th>Student</th><th>Bus arrived</th><th>Picked up</th><th>Wait</th><th>Dropped off</th><th>Status</th></tr></thead><tbody>{rep.map(r=>
+          <tr key={r.student.id}><td><span className="roster-stop">{r.student.RouteStudent?.stopOrder??'-'}</span></td>
+            <td><strong>{r.student.firstName} {r.student.lastName}</strong>{r.student.grade?<span style={{color:'var(--gray-400)',fontSize:'.8rem'}}> · {r.student.grade}</span>:''}</td>
+            <td>{fmtTime(r.arrived)}</td><td>{fmtTime(r.picked)}</td>
+            <td>{r.wait!=null?<strong>{fmtDur(r.wait)}</strong>:'—'}</td>
+            <td>{fmtTime(r.dropped)}</td>
+            <td><span className={`badge ${r.status.cls}`}>{r.status.icon} {r.status.label}</span></td></tr>)}</tbody></table></div>}
+        <h4 style={{margin:'1.25rem 0 .5rem',fontSize:'.95rem'}}>Full timeline</h4>
+        {tripLogs.length===0?<div className="empty-state"><p>No logs recorded.</p></div>:<div className="table-container"><table><thead><tr><th>Time</th><th>Student</th><th>Action</th><th>Notes</th></tr></thead><tbody>{[...tripLogs].sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp)).map(l=><tr key={l.id}><td>{fmtTime(l.timestamp)}</td><td>{l.student?.firstName} {l.student?.lastName}</td><td><span className={`badge ${l.action==='check_in'?'badge-onbus':l.action==='check_out'?'badge-completed':l.action==='arrived'?'badge-morning':'badge-absent'}`}>{l.action==='check_in'?'📥 Picked up':l.action==='check_out'?'📤 Dropped off':l.action==='arrived'?'📍 Arrived':'❌ Absent'}</span></td><td>{l.notes||'-'}</td></tr>)}</tbody></table></div>}
+      </>);})()}
     </Modal>
     <Modal isOpen={liveModalOpen} onClose={closeLive} wide title={`📡 Live — ${liveTrip?.route?.name||''}`}>
       {liveError&&<div className="alert alert-error">{liveError}</div>}
