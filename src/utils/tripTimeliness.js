@@ -17,18 +17,25 @@ export function tripStartDate(trip) {
 }
 
 // graceMinutes: how long after the scheduled start a trip is still considered
-// "on time" before it counts as not started / delayed.
-export function classifyTimeliness(trip, now = new Date(), graceMinutes = 5) {
+// "on time" before it counts as not started / delayed. Matches the backend
+// TRIP_START_GRACE_MINUTES default (30).
+export function classifyTimeliness(trip, now = new Date(), graceMinutes = 30) {
   const start = tripStartDate(trip);
   if (!start) return null;
   const graceMs = graceMinutes * 60000;
   const startMs = start.getTime();
   const nowMs = now instanceof Date ? now.getTime() : new Date(now).getTime();
 
+  // A trip the backend already retired for lapsing its start window.
+  if (trip.status === 'missed') {
+    const lateMinutes = Math.round((nowMs - startMs) / 60000);
+    return { key: 'not_started', label: 'Not started', cls: 'badge-missed', icon: '⚠️', lateMinutes };
+  }
+
   if (trip.status === 'scheduled') {
     if (nowMs > startMs + graceMs) {
       const lateMinutes = Math.round((nowMs - startMs) / 60000);
-      return { key: 'not_started', label: 'Not started', cls: 'badge-cancelled', icon: '⚠️', lateMinutes };
+      return { key: 'not_started', label: 'Not started', cls: 'badge-missed', icon: '⚠️', lateMinutes };
     }
     return { key: 'upcoming', label: 'Upcoming', cls: 'badge-scheduled', icon: '🕒', lateMinutes: 0 };
   }
