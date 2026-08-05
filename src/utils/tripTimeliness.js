@@ -40,6 +40,18 @@ export function classifyTimeliness(trip, now = new Date(), graceMinutes = 30) {
     return { key: 'upcoming', label: 'Upcoming', cls: 'badge-scheduled', icon: '🕒', lateMinutes: 0 };
   }
 
+  // Flagged 'delayed' by the backend: past its start time, not yet acknowledged/
+  // started, but still within the grace window. If the grace window has since
+  // lapsed it counts as not started.
+  if (trip.status === 'delayed' && !trip.startedAt) {
+    if (nowMs > startMs + graceMs) {
+      const lateMinutes = Math.round((nowMs - startMs) / 60000);
+      return { key: 'not_started', label: 'Not started', cls: 'badge-missed', icon: '⚠️', lateMinutes };
+    }
+    const lateMinutes = Math.max(0, Math.round((nowMs - startMs) / 60000));
+    return { key: 'delayed', label: lateMinutes > 0 ? `Delayed ${lateMinutes}m` : 'Delayed', cls: 'badge-maintenance', icon: '⏱️', lateMinutes };
+  }
+
   if (trip.status === 'cancelled') return null;
 
   // in_progress or completed: judge by when it actually started.
