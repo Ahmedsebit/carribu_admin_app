@@ -1,7 +1,8 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Center, Loader, Stack, Text } from '@mantine/core';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import Sidebar from './components/Sidebar';
+import AppLayout from './components/AppLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import VehiclesPage from './pages/VehiclesPage';
@@ -11,8 +12,11 @@ import TripsPage from './pages/TripsPage';
 import ParentsPage from './pages/ParentsPage';
 import DriversPage from './pages/DriversPage';
 
-const ProtectedRoute = ({children}) => { const {isAuthenticated,loading}=useAuth(); if(loading) return <div style={{padding:'2rem',textAlign:'center'}}>Loading...</div>; return isAuthenticated?children:<Navigate to="/login"/>; };
-const AppLayout = ({children}) => <div className="app-layout"><Sidebar/><main className="main-content">{children}</main></div>;
+const ProtectedRoute = ({children}) => {
+  const {isAuthenticated,loading}=useAuth();
+  if(loading) return <Center mih="100vh"><Stack align="center" gap="xs"><Loader color="carribu" /><Text c="dimmed" size="sm">Loading...</Text></Stack></Center>;
+  return isAuthenticated?children:<Navigate to="/login"/>;
+};
 const AppRoutes = () => {
   const {isAuthenticated}=useAuth();
   return (
