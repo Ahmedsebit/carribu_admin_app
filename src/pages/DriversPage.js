@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Group, Button, TextInput, Table, Paper, Alert, Badge, ActionIcon, Tooltip, Text } from '@mantine/core';
+import { IconPlus, IconSearch, IconEdit, IconTrash, IconAlertCircle, IconCircleCheck, IconKey } from '@tabler/icons-react';
 import { driverAPI } from '../services/api';
 import Modal from '../components/Modal';
+import { PageHeader, StatsGrid, StatCard, EmptyState, LoadingState } from '../components/ui';
 
 const emptyForm = { firstName: '', lastName: '', email: '', phone: '' };
 
@@ -39,7 +42,7 @@ const DriversPage = () => {
         const { data } = await driverAPI.create(form);
         if (data.tempPassword) setTempPassword(data.tempPassword);
         if (data.previewUrl) {
-          setSuccess(`Driver created! Email sent.`);
+          setSuccess('Driver created! Email sent.');
           window.open(data.previewUrl, '_blank');
         } else {
           setSuccess('Driver created! Welcome email sent.');
@@ -55,9 +58,7 @@ const DriversPage = () => {
     try {
       const { data } = await driverAPI.resetPassword(id);
       if (data.tempPassword) setTempPassword(data.tempPassword);
-      if (data.previewUrl) {
-        window.open(data.previewUrl, '_blank');
-      }
+      if (data.previewUrl) window.open(data.previewUrl, '_blank');
       setSuccess(data.emailSent ? 'Password reset! New password emailed to driver.' : 'Password reset! (Email delivery could not be confirmed)');
       setTimeout(() => setSuccess(''), 5000);
     } catch (e) { setError(e.response?.data?.error || 'Failed to reset password'); setTimeout(() => setError(''), 5000); }
@@ -78,68 +79,77 @@ const DriversPage = () => {
 
   return (
     <div>
-      <div className="page-header">
-        <div><h1>🚗 Driver Management</h1><p>Manage drivers and their assignments</p></div>
-        <button className="btn btn-primary" onClick={openAdd}>+ Add Driver</button>
-      </div>
+      <PageHeader
+        title="🚗 Driver Management"
+        subtitle="Manage drivers and their assignments"
+        actions={<Button leftSection={<IconPlus size={16} />} onClick={openAdd}>Add Driver</Button>}
+      />
 
-      {success && <div className="alert alert-success">{success}</div>}
-      {error && !modalOpen && <div className="alert alert-error">{error}</div>}
+      {success && <Alert color="green" icon={<IconCircleCheck size={16} />} mb="md" withCloseButton onClose={() => setSuccess('')}>{success}</Alert>}
+      {error && !modalOpen && <Alert color="red" icon={<IconAlertCircle size={16} />} mb="md" withCloseButton onClose={() => setError('')}>{error}</Alert>}
       {tempPassword && (
-        <div className="alert alert-success" style={{ background: '#fef3c7', border: '1px solid #f59e0b', color: '#92400e' }}>
-          <strong>Temporary Password:</strong> {tempPassword} <br />
-          <small>This was included in the welcome email sent to the driver.</small>
-        </div>
+        <Alert color="yellow" mb="md" withCloseButton onClose={() => setTempPassword('')}>
+          <Text size="sm"><strong>Temporary Password:</strong> {tempPassword}</Text>
+          <Text size="xs" c="dimmed">This was included in the welcome email sent to the driver.</Text>
+        </Alert>
       )}
 
-      <div className="stats-grid">
-        <div className="stat-card"><div className="stat-icon blue">🚗</div><div className="stat-info"><h4>{drivers.length}</h4><p>Total Drivers</p></div></div>
-        <div className="stat-card"><div className="stat-icon green">🗺️</div><div className="stat-info"><h4>{drivers.filter(d => d.assignedRoutes && d.assignedRoutes.length > 0).length}</h4><p>With Routes</p></div></div>
-        <div className="stat-card"><div className="stat-icon yellow">⚠️</div><div className="stat-info"><h4>{drivers.filter(d => !d.assignedRoutes || d.assignedRoutes.length === 0).length}</h4><p>Unassigned</p></div></div>
-      </div>
+      <StatsGrid cols={3}>
+        <StatCard icon="🚗" value={drivers.length} label="Total Drivers" color="blue" />
+        <StatCard icon="🗺️" value={drivers.filter(d => d.assignedRoutes && d.assignedRoutes.length > 0).length} label="With Routes" color="green" />
+        <StatCard icon="⚠️" value={drivers.filter(d => !d.assignedRoutes || d.assignedRoutes.length === 0).length} label="Unassigned" color="yellow" />
+      </StatsGrid>
 
-      <div className="filter-bar">
-        <input placeholder="Search drivers by name or email..." value={search} onChange={e => setSearch(e.target.value)} className="form-control" style={{ width: 320 }} />
-      </div>
+      <Group mb="md">
+        <TextInput placeholder="Search drivers by name or email..." leftSection={<IconSearch size={16} />} value={search} onChange={e => setSearch(e.target.value)} w={320} />
+      </Group>
 
-      <div className="card">
-        <div className="table-container">
-          {loading ? <div className="card-body"><p>Loading...</p></div> : filtered.length === 0 ? <div className="empty-state"><p>No drivers found.</p></div> : (
-            <table>
-              <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Routes</th><th>Vehicle</th><th>Actions</th></tr></thead>
-              <tbody>{filtered.map(d => (
-                <tr key={d.id}>
-                  <td><strong>{d.firstName} {d.lastName}</strong></td>
-                  <td>{d.email}</td>
-                  <td>{d.phone || '-'}</td>
-                  <td>{d.assignedRoutes?.length > 0 ? d.assignedRoutes.map(r => <span key={r.id} className="badge badge-active" style={{ marginRight: 4 }}>{r.name}</span>) : <span style={{ color: '#9ca3af' }}>None</span>}</td>
-                  <td>{d.assignedRoutes?.find(r => r.vehicle) ? d.assignedRoutes.filter(r => r.vehicle).map(r => <span key={r.id} className="badge" style={{ marginRight: 4, background: '#dbeafe', color: '#1e40af' }}>{r.vehicle.plateNumber}</span>) : <span style={{ color: '#9ca3af' }}>-</span>}</td>
-                  <td>
-                    <div className="btn-group">
-                      <button className="btn btn-outline btn-sm" onClick={() => openEdit(d)}>Edit</button>
-                      <button className="btn btn-outline btn-sm" style={{ color: '#d97706', borderColor: '#d97706' }} onClick={() => resetPassword(d.id)}>Reset Password</button>
-                      <button className="btn btn-danger btn-sm" onClick={() => deactivate(d.id)}>Deactivate</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}</tbody>
-            </table>
-          )}
-        </div>
-      </div>
+      <Paper withBorder radius="md" shadow="sm">
+        {loading ? <LoadingState /> : filtered.length === 0 ? <EmptyState message="No drivers found." /> : (
+          <Table.ScrollContainer minWidth={900}>
+            <Table verticalSpacing="sm" highlightOnHover>
+              <Table.Thead>
+                <Table.Tr><Table.Th>Name</Table.Th><Table.Th>Email</Table.Th><Table.Th>Phone</Table.Th><Table.Th>Routes</Table.Th><Table.Th>Vehicle</Table.Th><Table.Th>Actions</Table.Th></Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {filtered.map(d => (
+                  <Table.Tr key={d.id}>
+                    <Table.Td fw={600}>{d.firstName} {d.lastName}</Table.Td>
+                    <Table.Td>{d.email}</Table.Td>
+                    <Table.Td>{d.phone || '-'}</Table.Td>
+                    <Table.Td>{d.assignedRoutes?.length > 0 ? <Group gap={4}>{d.assignedRoutes.map(r => <Badge key={r.id} color="green" variant="light">{r.name}</Badge>)}</Group> : <span style={{ color: 'var(--mantine-color-gray-5)' }}>None</span>}</Table.Td>
+                    <Table.Td>{d.assignedRoutes?.find(r => r.vehicle) ? <Group gap={4}>{d.assignedRoutes.filter(r => r.vehicle).map(r => <Badge key={r.id} color="blue" variant="light">{r.vehicle.plateNumber}</Badge>)}</Group> : <span style={{ color: 'var(--mantine-color-gray-5)' }}>-</span>}</Table.Td>
+                    <Table.Td>
+                      <Group gap={6}>
+                        <Tooltip label="Edit"><ActionIcon variant="light" onClick={() => openEdit(d)}><IconEdit size={16} /></ActionIcon></Tooltip>
+                        <Tooltip label="Reset Password"><ActionIcon variant="light" color="yellow" onClick={() => resetPassword(d.id)}><IconKey size={16} /></ActionIcon></Tooltip>
+                        <Tooltip label="Deactivate"><ActionIcon variant="light" color="red" onClick={() => deactivate(d.id)}><IconTrash size={16} /></ActionIcon></Tooltip>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
+        )}
+      </Paper>
 
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Driver' : 'Add Driver'}
-        footer={<><button className="btn btn-outline" onClick={() => setModalOpen(false)}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving...' : editing ? 'Update' : 'Add Driver'}</button></>}>
-        {error && <div className="alert alert-error">{error}</div>}
-        <div className="form-row">
-          <div className="form-group"><label>First Name *</label><input className="form-control" value={form.firstName} onChange={e => ch('firstName', e.target.value)} /></div>
-          <div className="form-group"><label>Last Name *</label><input className="form-control" value={form.lastName} onChange={e => ch('lastName', e.target.value)} /></div>
-        </div>
-        <div className="form-row">
-          <div className="form-group"><label>Email *</label><input className="form-control" type="email" value={form.email} onChange={e => ch('email', e.target.value)} disabled={!!editing} /></div>
-          <div className="form-group"><label>Phone</label><input className="form-control" value={form.phone} onChange={e => ch('phone', e.target.value)} /></div>
-        </div>
-        {!editing && <p style={{ fontSize: 13, color: '#6b7280', marginTop: 8 }}>A temporary password will be auto-generated and emailed to the driver.</p>}
+      <Modal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editing ? 'Edit Driver' : 'Add Driver'}
+        footer={<><Button variant="default" onClick={() => setModalOpen(false)}>Cancel</Button><Button onClick={save} loading={saving}>{editing ? 'Update' : 'Add Driver'}</Button></>}
+      >
+        {error && <Alert color="red" icon={<IconAlertCircle size={16} />}>{error}</Alert>}
+        <Group grow>
+          <TextInput label="First Name *" value={form.firstName} onChange={e => ch('firstName', e.target.value)} />
+          <TextInput label="Last Name *" value={form.lastName} onChange={e => ch('lastName', e.target.value)} />
+        </Group>
+        <Group grow>
+          <TextInput label="Email *" type="email" value={form.email} onChange={e => ch('email', e.target.value)} disabled={!!editing} />
+          <TextInput label="Phone" value={form.phone} onChange={e => ch('phone', e.target.value)} />
+        </Group>
+        {!editing && <Text size="xs" c="dimmed">A temporary password will be auto-generated and emailed to the driver.</Text>}
       </Modal>
     </div>
   );

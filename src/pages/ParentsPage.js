@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  Group, Button, TextInput, NumberInput, Table, Paper, Alert, Badge, ActionIcon, Tooltip, Text, Select,
+  FileInput, ScrollArea, Title, Stack, Box,
+} from '@mantine/core';
+import {
+  IconPlus, IconSearch, IconEdit, IconTrash, IconEye, IconAlertCircle, IconCircleCheck, IconUpload,
+} from '@tabler/icons-react';
 import { parentAPI, studentAPI, importAPI } from '../services/api';
 import Modal from '../components/Modal';
+import { PageHeader, StatsGrid, StatCard, EmptyState, LoadingState } from '../components/ui';
 
 const LocationPicker = ({ lat, lng, onLocationChange }) => {
   const mapRef = useRef(null);
@@ -39,8 +47,8 @@ const LocationPicker = ({ lat, lng, onLocationChange }) => {
     }
   }, [googleReady, lat, lng]);
 
-  if (!googleReady) return <p style={{ fontSize: 13, color: '#6b7280' }}>📍 Google Maps not loaded — enter coordinates manually above.</p>;
-  return <div ref={mapRef} style={{ width: '100%', height: 220, borderRadius: 8, marginTop: 8, marginBottom: 8 }} />;
+  if (!googleReady) return <Text size="sm" c="dimmed">📍 Google Maps not loaded — enter coordinates manually above.</Text>;
+  return <Box ref={mapRef} style={{ width: '100%', height: 220, borderRadius: 8, marginTop: 8, marginBottom: 8 }} />;
 };
 
 const emptyForm = { firstName: '', lastName: '', email: '', phone: '', pickupAddress: '', pickupLat: '', pickupLng: '' };
@@ -62,6 +70,7 @@ const ParentsPage = () => {
   const [newChildFirst, setNewChildFirst] = useState('');
   const [newChildLast, setNewChildLast] = useState('');
   const [newChildGrade, setNewChildGrade] = useState('');
+  const [newChildAdmission, setNewChildAdmission] = useState('');
   const [addingChild, setAddingChild] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importFile, setImportFile] = useState(null);
@@ -140,12 +149,12 @@ const ParentsPage = () => {
   };
 
   const createChild = async () => {
-    if (!newChildFirst || !newChildLast) return;
+    if (!newChildAdmission || !newChildFirst || !newChildLast) return;
     setAddingChild(true);
     try {
-      const { data } = await studentAPI.create({ firstName: newChildFirst, lastName: newChildLast, grade: newChildGrade, parentId: selectedParent.id });
+      await studentAPI.create({ admissionNumber: newChildAdmission, firstName: newChildFirst, lastName: newChildLast, grade: newChildGrade, parentId: selectedParent.id });
       setSuccess(`Student ${newChildFirst} ${newChildLast} created and linked!`);
-      setNewChildFirst(''); setNewChildLast(''); setNewChildGrade('');
+      setNewChildAdmission(''); setNewChildFirst(''); setNewChildLast(''); setNewChildGrade('');
       const { data: parentData } = await parentAPI.getById(selectedParent.id);
       setSelectedParent(parentData.parent);
       setTimeout(() => setSuccess(''), 3000);
@@ -153,9 +162,8 @@ const ParentsPage = () => {
     finally { setAddingChild(false); }
   };
 
-  const handleImportFileChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  const handleImportFileChange = async (file) => {
+    if (!file) { setImportFile(null); setImportPreview(null); setImportResults(null); return; }
     setImportFile(file);
     setImportPreview(null);
     setImportResults(null);
@@ -201,211 +209,244 @@ const ParentsPage = () => {
 
   return (
     <div>
-      <div className="page-header">
-        <div><h1>👪 Parent Management</h1><p>Manage parents and assign children</p></div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-outline" onClick={() => setImportModalOpen(true)}>📤 Import CSV</button>
-          <button className="btn btn-primary" onClick={openAdd}>+ Add Parent</button>
-        </div>
-      </div>
+      <PageHeader
+        title="👪 Parent Management"
+        subtitle="Manage parents and assign children"
+        actions={<>
+          <Button variant="default" leftSection={<IconUpload size={16} />} onClick={() => setImportModalOpen(true)}>Import CSV</Button>
+          <Button leftSection={<IconPlus size={16} />} onClick={openAdd}>Add Parent</Button>
+        </>}
+      />
 
-      {success && <div className="alert alert-success">{success}</div>}
+      {success && <Alert color="green" icon={<IconCircleCheck size={16} />} mb="md" withCloseButton onClose={() => setSuccess('')}>{success}</Alert>}
 
-      <div className="stats-grid">
-        <div className="stat-card"><div className="stat-icon blue">👪</div><div className="stat-info"><h4>{parents.length}</h4><p>Total Parents</p></div></div>
-        <div className="stat-card"><div className="stat-icon green">✅</div><div className="stat-info"><h4>{parents.filter(p => p.children && p.children.length > 0).length}</h4><p>With Children</p></div></div>
-        <div className="stat-card"><div className="stat-icon yellow">⚠️</div><div className="stat-info"><h4>{parents.filter(p => !p.children || p.children.length === 0).length}</h4><p>No Children Linked</p></div></div>
-      </div>
+      <StatsGrid cols={3}>
+        <StatCard icon="👪" value={parents.length} label="Total Parents" color="blue" />
+        <StatCard icon="✅" value={parents.filter(p => p.children && p.children.length > 0).length} label="With Children" color="green" />
+        <StatCard icon="⚠️" value={parents.filter(p => !p.children || p.children.length === 0).length} label="No Children Linked" color="yellow" />
+      </StatsGrid>
 
-      <div className="filter-bar">
-        <input placeholder="Search parents by name or email..." value={search} onChange={e => setSearch(e.target.value)} className="form-control" style={{ width: 320 }} />
-      </div>
+      <Group mb="md">
+        <TextInput placeholder="Search parents by name or email..." leftSection={<IconSearch size={16} />} value={search} onChange={e => setSearch(e.target.value)} w={320} />
+      </Group>
 
-      <div className="card">
-        <div className="table-container">
-          {loading ? <div className="card-body"><p>Loading...</p></div> : filtered.length === 0 ? <div className="empty-state"><p>No parents found.</p></div> : (
-            <table>
-              <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Pickup Address</th><th>Children</th><th>Actions</th></tr></thead>
-              <tbody>{filtered.map(p => (
-                <tr key={p.id}>
-                  <td><strong>{p.firstName} {p.lastName}</strong></td>
-                  <td>{p.email}</td>
-                  <td>{p.phone || '-'}</td>
-                  <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.pickupAddress || '-'}</td>
-                  <td>{p.children?.length || 0} student{p.children?.length !== 1 ? 's' : ''}</td>
-                  <td>
-                    <div className="btn-group">
-                      <button className="btn btn-outline btn-sm" onClick={() => openDetail(p)}>View</button>
-                      <button className="btn btn-outline btn-sm" onClick={() => openEdit(p)}>Edit</button>
-                      <button className="btn btn-danger btn-sm" onClick={() => deactivate(p.id)}>Deactivate</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}</tbody>
-            </table>
-          )}
-        </div>
-      </div>
+      <Paper withBorder radius="md" shadow="sm">
+        {loading ? <LoadingState /> : filtered.length === 0 ? <EmptyState message="No parents found." /> : (
+          <Table.ScrollContainer minWidth={900}>
+            <Table verticalSpacing="sm" highlightOnHover>
+              <Table.Thead>
+                <Table.Tr><Table.Th>Name</Table.Th><Table.Th>Email</Table.Th><Table.Th>Phone</Table.Th><Table.Th>Pickup Address</Table.Th><Table.Th>Children</Table.Th><Table.Th>Actions</Table.Th></Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {filtered.map(p => (
+                  <Table.Tr key={p.id}>
+                    <Table.Td fw={600}>{p.firstName} {p.lastName}</Table.Td>
+                    <Table.Td>{p.email}</Table.Td>
+                    <Table.Td>{p.phone || '-'}</Table.Td>
+                    <Table.Td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.pickupAddress || '-'}</Table.Td>
+                    <Table.Td>{p.children?.length || 0} student{p.children?.length !== 1 ? 's' : ''}</Table.Td>
+                    <Table.Td>
+                      <Group gap={6}>
+                        <Tooltip label="View"><ActionIcon variant="light" onClick={() => openDetail(p)}><IconEye size={16} /></ActionIcon></Tooltip>
+                        <Tooltip label="Edit"><ActionIcon variant="light" onClick={() => openEdit(p)}><IconEdit size={16} /></ActionIcon></Tooltip>
+                        <Tooltip label="Deactivate"><ActionIcon variant="light" color="red" onClick={() => deactivate(p.id)}><IconTrash size={16} /></ActionIcon></Tooltip>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
+        )}
+      </Paper>
 
       {/* Add/Edit Modal */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Parent' : 'Add Parent'}
-        footer={<><button className="btn btn-outline" onClick={() => setModalOpen(false)}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving...' : editing ? 'Update' : 'Add Parent'}</button></>}>
-        {error && <div className="alert alert-error">{error}</div>}
-        <div className="form-row">
-          <div className="form-group"><label>First Name *</label><input className="form-control" value={form.firstName} onChange={e => ch('firstName', e.target.value)} /></div>
-          <div className="form-group"><label>Last Name *</label><input className="form-control" value={form.lastName} onChange={e => ch('lastName', e.target.value)} /></div>
-        </div>
-        <div className="form-row">
-          <div className="form-group"><label>Email *</label><input className="form-control" type="email" value={form.email} onChange={e => ch('email', e.target.value)} disabled={!!editing} /></div>
-          <div className="form-group"><label>Phone *</label><input className="form-control" placeholder="e.g. 0712345678" value={form.phone} onChange={e => ch('phone', e.target.value)} /></div>
-        </div>
-        <div className="form-group"><label>Pickup Address</label><input className="form-control" placeholder="e.g. 123 Westlands Rd, Nairobi" value={form.pickupAddress} onChange={e => ch('pickupAddress', e.target.value)} /></div>
-        <div className="form-row">
-          <div className="form-group"><label>Pickup Latitude</label><input className="form-control" type="number" step="any" placeholder="-1.2921" value={form.pickupLat} onChange={e => ch('pickupLat', e.target.value)} /></div>
-          <div className="form-group"><label>Pickup Longitude</label><input className="form-control" type="number" step="any" placeholder="36.8219" value={form.pickupLng} onChange={e => ch('pickupLng', e.target.value)} /></div>
-        </div>
+      <Modal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editing ? 'Edit Parent' : 'Add Parent'}
+        footer={<><Button variant="default" onClick={() => setModalOpen(false)}>Cancel</Button><Button onClick={save} loading={saving}>{editing ? 'Update' : 'Add Parent'}</Button></>}
+      >
+        {error && <Alert color="red" icon={<IconAlertCircle size={16} />}>{error}</Alert>}
+        <Group grow>
+          <TextInput label="First Name *" value={form.firstName} onChange={e => ch('firstName', e.target.value)} />
+          <TextInput label="Last Name *" value={form.lastName} onChange={e => ch('lastName', e.target.value)} />
+        </Group>
+        <Group grow>
+          <TextInput label="Email *" type="email" value={form.email} onChange={e => ch('email', e.target.value)} disabled={!!editing} />
+          <TextInput label="Phone *" placeholder="e.g. 0712345678" value={form.phone} onChange={e => ch('phone', e.target.value)} />
+        </Group>
+        <TextInput label="Pickup Address" placeholder="e.g. 123 Westlands Rd, Nairobi" value={form.pickupAddress} onChange={e => ch('pickupAddress', e.target.value)} />
+        <Group grow>
+          <NumberInput label="Pickup Latitude" decimalScale={6} value={form.pickupLat} onChange={v => ch('pickupLat', v)} placeholder="-1.2921" />
+          <NumberInput label="Pickup Longitude" decimalScale={6} value={form.pickupLng} onChange={v => ch('pickupLng', v)} placeholder="36.8219" />
+        </Group>
         <LocationPicker lat={form.pickupLat} lng={form.pickupLng} onLocationChange={(lat, lng) => setForm(p => ({ ...p, pickupLat: lat, pickupLng: lng }))} />
-        {!editing && <p style={{ fontSize: 13, color: '#6b7280', marginTop: 8 }}>A temporary password will be auto-generated and emailed to the parent.</p>}
+        {!editing && <Text size="xs" c="dimmed">A temporary password will be auto-generated and emailed to the parent.</Text>}
       </Modal>
 
       {/* Detail/Children Modal */}
-      <Modal isOpen={detailModal} onClose={() => setDetailModal(false)} title={selectedParent ? `${selectedParent.firstName} ${selectedParent.lastName} — Children` : 'Parent Details'}
-        footer={<button className="btn btn-outline" onClick={() => setDetailModal(false)}>Close</button>}>
+      <Modal
+        isOpen={detailModal}
+        onClose={() => setDetailModal(false)}
+        title={selectedParent ? `${selectedParent.firstName} ${selectedParent.lastName} — Children` : 'Parent Details'}
+        footer={<Button variant="default" onClick={() => setDetailModal(false)}>Close</Button>}
+      >
         {selectedParent && (
-          <div>
-            <p style={{ marginBottom: 12, color: '#6b7280' }}><strong>Email:</strong> {selectedParent.email} | <strong>Phone:</strong> {selectedParent.phone || '-'}</p>
-            <p style={{ marginBottom: 16, color: '#6b7280' }}><strong>Pickup:</strong> {selectedParent.pickupAddress || 'Not set'}</p>
+          <Stack gap="md">
+            <Box>
+              <Text size="sm" c="dimmed"><strong>Email:</strong> {selectedParent.email} | <strong>Phone:</strong> {selectedParent.phone || '-'}</Text>
+              <Text size="sm" c="dimmed"><strong>Pickup:</strong> {selectedParent.pickupAddress || 'Not set'}</Text>
+            </Box>
 
-            <h4 style={{ marginBottom: 8 }}>Children ({selectedParent.children?.length || 0})</h4>
-            {selectedParent.children && selectedParent.children.length > 0 ? (
-              <table style={{ width: '100%', marginBottom: 16 }}>
-                <thead><tr><th>Name</th><th>Grade</th><th>Action</th></tr></thead>
-                <tbody>{selectedParent.children.map(c => (
-                  <tr key={c.id}><td>{c.firstName} {c.lastName}</td><td>{c.grade || '-'}</td><td><button className="btn btn-danger btn-sm" onClick={() => removeStudent(c.id)}>Remove</button></td></tr>
-                ))}</tbody>
-              </table>
-            ) : <p style={{ color: '#9ca3af', marginBottom: 16 }}>No children assigned yet.</p>}
+            <Box>
+              <Title order={5} mb={8}>Children ({selectedParent.children?.length || 0})</Title>
+              {selectedParent.children && selectedParent.children.length > 0 ? (
+                <Table>
+                  <Table.Thead><Table.Tr><Table.Th>Name</Table.Th><Table.Th>Grade</Table.Th><Table.Th>Action</Table.Th></Table.Tr></Table.Thead>
+                  <Table.Tbody>
+                    {selectedParent.children.map(c => (
+                      <Table.Tr key={c.id}>
+                        <Table.Td>{c.firstName} {c.lastName}</Table.Td>
+                        <Table.Td>{c.grade || '-'}</Table.Td>
+                        <Table.Td><Button size="xs" color="red" variant="light" onClick={() => removeStudent(c.id)}>Remove</Button></Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              ) : <Text c="dimmed" size="sm">No children assigned yet.</Text>}
+            </Box>
 
-            <h4 style={{ marginBottom: 8 }}>Assign Existing Student</h4>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-              <select className="form-control" value={assignStudentId} onChange={e => setAssignStudentId(e.target.value)} style={{ flex: 1 }}>
-                <option value="">Select unassigned student...</option>
-                {allStudents.map(s => <option key={s.id} value={s.id}>{s.firstName} {s.lastName} ({s.grade || 'No grade'})</option>)}
-              </select>
-              <button className="btn btn-primary" onClick={assignStudent} disabled={!assignStudentId}>Assign</button>
-            </div>
+            <Box>
+              <Title order={5} mb={8}>Assign Existing Student</Title>
+              <Group>
+                <Select
+                  placeholder="Select unassigned student..."
+                  data={allStudents.map(s => ({ value: String(s.id), label: `${s.firstName} ${s.lastName} (${s.grade || 'No grade'})` }))}
+                  value={assignStudentId}
+                  onChange={v => setAssignStudentId(v || '')}
+                  style={{ flex: 1 }}
+                  searchable
+                />
+                <Button onClick={assignStudent} disabled={!assignStudentId}>Assign</Button>
+              </Group>
+            </Box>
 
-            <h4 style={{ marginBottom: 8 }}>Add New Child</h4>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <input className="form-control" placeholder="First Name *" value={newChildFirst} onChange={e => setNewChildFirst(e.target.value)} style={{ flex: 1, minWidth: 120 }} />
-              <input className="form-control" placeholder="Last Name *" value={newChildLast} onChange={e => setNewChildLast(e.target.value)} style={{ flex: 1, minWidth: 120 }} />
-              <input className="form-control" placeholder="Grade" value={newChildGrade} onChange={e => setNewChildGrade(e.target.value)} style={{ width: 80 }} />
-              <button className="btn btn-primary" onClick={createChild} disabled={addingChild || !newChildFirst || !newChildLast}>{addingChild ? 'Adding...' : 'Add'}</button>
-            </div>
-          </div>
+            <Box>
+              <Title order={5} mb={8}>Add New Child</Title>
+              <Group>
+                <TextInput placeholder="Admission No. *" value={newChildAdmission} onChange={e => setNewChildAdmission(e.target.value.toUpperCase())} style={{ flex: 1, minWidth: 120 }} />
+                <TextInput placeholder="First Name *" value={newChildFirst} onChange={e => setNewChildFirst(e.target.value)} style={{ flex: 1, minWidth: 120 }} />
+                <TextInput placeholder="Last Name *" value={newChildLast} onChange={e => setNewChildLast(e.target.value)} style={{ flex: 1, minWidth: 120 }} />
+                <TextInput placeholder="Grade" value={newChildGrade} onChange={e => setNewChildGrade(e.target.value)} w={90} />
+                <Button onClick={createChild} loading={addingChild} disabled={!newChildAdmission || !newChildFirst || !newChildLast}>Add</Button>
+              </Group>
+            </Box>
+          </Stack>
         )}
       </Modal>
 
       {/* Import CSV Modal */}
-      <Modal isOpen={importModalOpen} onClose={closeImportModal} title="📤 Import Parents & Students from CSV"
+      <Modal
+        isOpen={importModalOpen}
+        onClose={closeImportModal}
+        wide
+        title="📤 Import Parents & Students from CSV"
         footer={<>
-          <button className="btn btn-outline" onClick={closeImportModal}>Close</button>
+          <Button variant="default" onClick={closeImportModal}>Close</Button>
           {importPreview && !importResults && (
-            <button className="btn btn-primary" onClick={handleImport} disabled={importing}>
-              {importing ? 'Importing...' : `Import ${importPreview.totalParents} Parents & ${importPreview.totalStudents} Students`}
-            </button>
+            <Button onClick={handleImport} loading={importing}>
+              Import {importPreview.totalParents} Parents & {importPreview.totalStudents} Students
+            </Button>
           )}
-        </>}>
-        {error && <div className="alert alert-error">{error}</div>}
+        </>}
+      >
+        {error && <Alert color="red" icon={<IconAlertCircle size={16} />}>{error}</Alert>}
 
         {!importResults ? (
-          <div>
-            <div className="form-group">
-              <label>Select CSV File</label>
-              <input type="file" accept=".csv" className="form-control" onChange={handleImportFileChange} />
-              <small style={{ color: '#6b7280' }}>Upload a CSV with columns: Parent Name, Phone Number, Child(ren), Grade/Class</small>
-            </div>
+          <Stack gap="md">
+            <Box>
+              <FileInput label="Select CSV File" placeholder="Choose file..." accept=".csv" leftSection={<IconUpload size={16} />} value={importFile} onChange={handleImportFileChange} />
+              <Text size="xs" c="dimmed" mt={4}>Upload a CSV with columns: Parent Name, Phone Number, Child(ren), Grade/Class</Text>
+            </Box>
 
-            <div style={{ marginTop: 12, padding: '10px 12px', background: '#eff6ff', borderRadius: 8, fontSize: 13, color: '#1e40af' }}>
+            <Alert color="blue" variant="light">
               Imported parents set their own password in the app using their phone number — no credentials are sent.
-            </div>
+            </Alert>
 
             {importPreview && (
-              <div style={{ marginTop: 16 }}>
-                <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
-                  <div style={{ background: '#eff6ff', padding: '12px 16px', borderRadius: 8, flex: 1 }}>
-                    <strong style={{ fontSize: 20 }}>{importPreview.totalParents}</strong>
-                    <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>Parents</p>
-                  </div>
-                  <div style={{ background: '#f0fdf4', padding: '12px 16px', borderRadius: 8, flex: 1 }}>
-                    <strong style={{ fontSize: 20 }}>{importPreview.totalStudents}</strong>
-                    <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>Students</p>
-                  </div>
-                </div>
-                <div style={{ maxHeight: 300, overflow: 'auto', border: '1px solid #e5e7eb', borderRadius: 8 }}>
-                  <table style={{ width: '100%', fontSize: 13 }}>
-                    <thead><tr><th style={{ position: 'sticky', top: 0, background: '#f9fafb' }}>Parent</th><th style={{ position: 'sticky', top: 0, background: '#f9fafb' }}>Phone</th><th style={{ position: 'sticky', top: 0, background: '#f9fafb' }}>Children</th></tr></thead>
-                    <tbody>{importPreview.parents.map((p, i) => (
-                      <tr key={i}>
-                        <td>{p.name}</td>
-                        <td>{p.phone || <span style={{ color: '#ef4444' }}>Missing</span>}</td>
-                        <td>{p.children.map(c => `${c.name} (${c.grade || '?'})`).join(', ')}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
-                </div>
-              </div>
+              <Box>
+                <Group grow mb="md">
+                  <Paper bg="blue.0" p="md" radius="md">
+                    <Text size="xl" fw={700}>{importPreview.totalParents}</Text>
+                    <Text size="xs" c="dimmed">Parents</Text>
+                  </Paper>
+                  <Paper bg="green.0" p="md" radius="md">
+                    <Text size="xl" fw={700}>{importPreview.totalStudents}</Text>
+                    <Text size="xs" c="dimmed">Students</Text>
+                  </Paper>
+                </Group>
+                <ScrollArea.Autosize mah={300}>
+                  <Table withTableBorder>
+                    <Table.Thead><Table.Tr><Table.Th>Parent</Table.Th><Table.Th>Phone</Table.Th><Table.Th>Children</Table.Th></Table.Tr></Table.Thead>
+                    <Table.Tbody>
+                      {importPreview.parents.map((p, i) => (
+                        <Table.Tr key={i}>
+                          <Table.Td>{p.name}</Table.Td>
+                          <Table.Td>{p.phone || <Text c="red" span size="sm">Missing</Text>}</Table.Td>
+                          <Table.Td>{p.children.map(c => `${c.name} (${c.grade || '?'})`).join(', ')}</Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </ScrollArea.Autosize>
+              </Box>
             )}
-          </div>
+          </Stack>
         ) : (
-          <div>
-            <div className="alert alert-success" style={{ marginBottom: 16 }}>{importResults.message}</div>
+          <Stack gap="md">
+            <Alert color="green" icon={<IconCircleCheck size={16} />}>{importResults.message}</Alert>
 
-            <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-              <div style={{ background: '#eff6ff', padding: '10px 14px', borderRadius: 8 }}>
-                <strong>{importResults.parentsCreated}</strong> <span style={{ fontSize: 13 }}>parents created</span>
-              </div>
-              <div style={{ background: '#f0fdf4', padding: '10px 14px', borderRadius: 8 }}>
-                <strong>{importResults.studentsCreated}</strong> <span style={{ fontSize: 13 }}>students created</span>
-              </div>
-            </div>
+            <Group>
+              <Paper bg="blue.0" p="sm" radius="md"><Text size="sm"><strong>{importResults.parentsCreated}</strong> parents created</Text></Paper>
+              <Paper bg="green.0" p="sm" radius="md"><Text size="sm"><strong>{importResults.studentsCreated}</strong> students created</Text></Paper>
+            </Group>
 
             {importResults.created && importResults.created.length > 0 && (
-              <div>
-                <h4 style={{ marginBottom: 8 }}>Parents Added</h4>
-                <small style={{ color: '#6b7280', display: 'block', marginBottom: 8 }}>They set their own password in the app using their phone number</small>
-                <div style={{ maxHeight: 250, overflow: 'auto', border: '1px solid #e5e7eb', borderRadius: 8 }}>
-                  <table style={{ width: '100%', fontSize: 13 }}>
-                    <thead><tr><th style={{ position: 'sticky', top: 0, background: '#f9fafb' }}>Name</th><th style={{ position: 'sticky', top: 0, background: '#f9fafb' }}>Phone</th></tr></thead>
-                    <tbody>{importResults.created.map((c, i) => (
-                      <tr key={i}>
-                        <td>{c.name}</td>
-                        <td><code>{c.phone || '-'}</code></td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
-                </div>
-              </div>
+              <Box>
+                <Title order={5} mb={4}>Parents Added</Title>
+                <Text size="xs" c="dimmed" mb={8}>They set their own password in the app using their phone number</Text>
+                <ScrollArea.Autosize mah={250}>
+                  <Table withTableBorder>
+                    <Table.Thead><Table.Tr><Table.Th>Name</Table.Th><Table.Th>Phone</Table.Th></Table.Tr></Table.Thead>
+                    <Table.Tbody>
+                      {importResults.created.map((c, i) => (
+                        <Table.Tr key={i}><Table.Td>{c.name}</Table.Td><Table.Td><code>{c.phone || '-'}</code></Table.Td></Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </ScrollArea.Autosize>
+              </Box>
             )}
 
             {importResults.skipped?.length > 0 && (
-              <div style={{ marginTop: 12 }}>
-                <h4 style={{ marginBottom: 4, color: '#f59e0b' }}>Skipped ({importResults.skipped.length})</h4>
-                <ul style={{ fontSize: 13, color: '#6b7280', maxHeight: 100, overflow: 'auto' }}>
-                  {importResults.skipped.map((s, i) => <li key={i}>{s}</li>)}
-                </ul>
-              </div>
+              <Box>
+                <Title order={5} c="yellow.7" mb={4}>Skipped ({importResults.skipped.length})</Title>
+                <ScrollArea.Autosize mah={100}>
+                  <Stack gap={2}>{importResults.skipped.map((s, i) => <Text key={i} size="sm" c="dimmed">{s}</Text>)}</Stack>
+                </ScrollArea.Autosize>
+              </Box>
             )}
 
             {importResults.errors?.length > 0 && (
-              <div style={{ marginTop: 12 }}>
-                <h4 style={{ marginBottom: 4, color: '#ef4444' }}>Errors ({importResults.errors.length})</h4>
-                <ul style={{ fontSize: 13, color: '#ef4444', maxHeight: 100, overflow: 'auto' }}>
-                  {importResults.errors.map((e, i) => <li key={i}>{e}</li>)}
-                </ul>
-              </div>
+              <Box>
+                <Title order={5} c="red" mb={4}>Errors ({importResults.errors.length})</Title>
+                <ScrollArea.Autosize mah={100}>
+                  <Stack gap={2}>{importResults.errors.map((e, i) => <Text key={i} size="sm" c="red">{e}</Text>)}</Stack>
+                </ScrollArea.Autosize>
+              </Box>
             )}
-          </div>
+          </Stack>
         )}
       </Modal>
     </div>

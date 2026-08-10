@@ -1,29 +1,107 @@
 import React, { useState, useEffect } from 'react';
+import { Grid, Paper, Group, Title, Text, Table, ThemeIcon, Badge } from '@mantine/core';
+import { IconBus, IconBackpack, IconRoute, IconSteeringWheel, IconChartBar, IconBusStop } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext';
 import { schoolAPI, vehicleAPI, tripAPI } from '../services/api';
+import { PageHeader, StatsGrid, StatCard, EmptyState, LoadingState, statusColor } from '../components/ui';
+
+const FLEET_TILES = [
+  { key: 'active', label: 'Active', shade: 6 },
+  { key: 'maintenance', label: 'Maintenance', shade: 7 },
+  { key: 'retired', label: 'Retired', shade: 8 },
+  { key: 'total', label: 'Total', shade: 9 },
+];
+
 const DashboardPage = () => {
-  const {user}=useAuth(); const [dash,setDash]=useState(null); const [vStats,setVStats]=useState(null); const [trips,setTrips]=useState([]); const [loading,setLoading]=useState(true);
-  useEffect(()=>{ if(!user?.schoolId) return; (async()=>{ try { const [d,v,t]=await Promise.all([schoolAPI.getDashboard(user.schoolId),vehicleAPI.getStats(),tripAPI.getAll({date:new Date().toISOString().split('T')[0]})]); setDash(d.data.dashboard);setVStats(v.data.stats);setTrips(t.data.trips); } catch(e){} finally{setLoading(false);} })(); },[user]);
-  if(loading) return <p>Loading dashboard...</p>;
-  return (<div>
-    <div className="page-header"><div><h1>Dashboard</h1><p>Welcome back, {user?.firstName}!</p></div></div>
-    <div className="stats-grid">
-      <div className="stat-card"><div className="stat-icon blue">🚐</div><div className="stat-info"><h4>{dash?.vehicleCount||0}</h4><p>Active Vehicles</p></div></div>
-      <div className="stat-card"><div className="stat-icon green">🎒</div><div className="stat-info"><h4>{dash?.studentCount||0}</h4><p>Students</p></div></div>
-      <div className="stat-card"><div className="stat-icon yellow">🗺️</div><div className="stat-info"><h4>{dash?.routeCount||0}</h4><p>Routes</p></div></div>
-      <div className="stat-card"><div className="stat-icon red">👨‍✈️</div><div className="stat-info"><h4>{dash?.driverCount||0}</h4><p>Drivers</p></div></div>
+  const { user } = useAuth();
+  const [dash, setDash] = useState(null);
+  const [vStats, setVStats] = useState(null);
+  const [trips, setTrips] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user?.schoolId) return;
+    (async () => {
+      try {
+        const [d, v, t] = await Promise.all([
+          schoolAPI.getDashboard(user.schoolId),
+          vehicleAPI.getStats(),
+          tripAPI.getAll({ date: new Date().toISOString().split('T')[0] }),
+        ]);
+        setDash(d.data.dashboard);
+        setVStats(v.data.stats);
+        setTrips(t.data.trips);
+      } catch (e) { /* ignore, page renders with defaults */ }
+      finally { setLoading(false); }
+    })();
+  }, [user]);
+
+  if (loading) return <LoadingState label="Loading dashboard..." />;
+
+  return (
+    <div>
+      <PageHeader title="Dashboard" subtitle={`Welcome back, ${user?.firstName}!`} />
+
+      <StatsGrid>
+        <StatCard icon={<IconBus size={24} />} value={dash?.vehicleCount || 0} label="Active Vehicles" color="blue" />
+        <StatCard icon={<IconBackpack size={24} />} value={dash?.studentCount || 0} label="Students" color="green" />
+        <StatCard icon={<IconRoute size={24} />} value={dash?.routeCount || 0} label="Routes" color="yellow" />
+        <StatCard icon={<IconSteeringWheel size={24} />} value={dash?.driverCount || 0} label="Drivers" color="red" />
+      </StatsGrid>
+
+      <Grid>
+        <Grid.Col span={{ base: 12, md: 6 }}>
+          <Paper withBorder radius="md" shadow="sm">
+            <Group p="md" style={{ borderBottom: '1px solid var(--mantine-color-gray-2)' }}>
+              <ThemeIcon variant="light" color="blue"><IconBus size={16} /></ThemeIcon>
+              <Title order={4}>Fleet Status</Title>
+            </Group>
+            <div style={{ padding: 16 }}>
+              {vStats ? (
+                <Grid>
+                  {FLEET_TILES.map(tile => (
+                    <Grid.Col span={6} key={tile.key}>
+                      <Paper bg={`maroon.${tile.shade}`} p="md" radius="md" ta="center">
+                        <Text size="xl" fw={700} c="white">{vStats[tile.key] ?? 0}</Text>
+                        <Text size="xs" c="white" opacity={0.82}>{tile.label}</Text>
+                      </Paper>
+                    </Grid.Col>
+                  ))}
+                </Grid>
+              ) : <EmptyState message="No data" />}
+            </div>
+          </Paper>
+        </Grid.Col>
+
+        <Grid.Col span={{ base: 12, md: 6 }}>
+          <Paper withBorder radius="md" shadow="sm">
+            <Group p="md" style={{ borderBottom: '1px solid var(--mantine-color-gray-2)' }}>
+              <ThemeIcon variant="light" color="carribu"><IconBusStop size={16} /></ThemeIcon>
+              <Title order={4}>Today's Trips</Title>
+            </Group>
+            <div style={{ padding: trips.length ? 0 : 16 }}>
+              {trips.length > 0 ? (
+                <Table.ScrollContainer minWidth={320}>
+                  <Table verticalSpacing="sm" highlightOnHover>
+                    <Table.Thead><Table.Tr><Table.Th>Route</Table.Th><Table.Th>Driver</Table.Th><Table.Th>Status</Table.Th></Table.Tr></Table.Thead>
+                    <Table.Tbody>
+                      {trips.map(t => (
+                        <Table.Tr key={t.id}>
+                          <Table.Td>{t.route?.name || '-'}</Table.Td>
+                          <Table.Td>{t.driver ? `${t.driver.firstName} ${t.driver.lastName}` : '-'}</Table.Td>
+                          <Table.Td><Badge color={statusColor(t.status)} variant="light">{t.status.replace('_', ' ')}</Badge></Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </Table.ScrollContainer>
+              ) : <EmptyState message="No trips today." />}
+            </div>
+          </Paper>
+        </Grid.Col>
+      </Grid>
     </div>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1.5rem'}}>
-      <div className="card"><div className="card-header"><h3>🚐 Fleet Status</h3></div><div className="card-body">{vStats?
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem'}}>
-          {[['Active',vStats.active,'#dcfce7','#16a34a'],['Maintenance',vStats.maintenance,'#fef3c7','#d97706'],['Retired',vStats.retired,'#f3f4f6','#6b7280'],['Total',vStats.total,'#dbeafe','#2563eb']].map(([l,n,bg,c])=>
-            <div key={l} style={{textAlign:'center',padding:'1rem',background:bg,borderRadius:'8px'}}><div style={{fontSize:'1.5rem',fontWeight:700,color:c}}>{n}</div><div style={{fontSize:'.8rem',color:c}}>{l}</div></div>)}
-        </div>:<p>No data</p>}</div></div>
-      <div className="card"><div className="card-header"><h3>🚌 Today's Trips</h3></div><div className="card-body">{trips.length>0?
-        <div className="table-container"><table><thead><tr><th>Route</th><th>Driver</th><th>Status</th></tr></thead><tbody>{trips.map(t=>
-          <tr key={t.id}><td>{t.route?.name||'-'}</td><td>{t.driver?`${t.driver.firstName} ${t.driver.lastName}`:'-'}</td><td><span className={`badge badge-${t.status.replace('_','-')}`}>{t.status.replace('_',' ')}</span></td></tr>
-        )}</tbody></table></div>:<div className="empty-state"><p>No trips today.</p></div>}</div></div>
-    </div>
-  </div>);
+  );
 };
+
 export default DashboardPage;
