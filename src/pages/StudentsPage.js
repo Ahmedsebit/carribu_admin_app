@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Group, Button, TextInput, Select, Table, Paper, Alert, Badge, ActionIcon, Tooltip } from '@mantine/core';
-import { IconPlus, IconSearch, IconEdit, IconTrash, IconAlertCircle, IconCircleCheck } from '@tabler/icons-react';
+import { Group, Button, TextInput, Select, Paper, Alert, Badge, ActionIcon, Tooltip, SimpleGrid, Box, Text, ThemeIcon, Stack } from '@mantine/core';
+import { IconPlus, IconSearch, IconEdit, IconTrash, IconAlertCircle, IconCircleCheck, IconSchool, IconUsers, IconMapPin, IconRoute } from '@tabler/icons-react';
 import { studentAPI } from '../services/api';
 import Modal from '../components/Modal';
 import { PageHeader, StatsGrid, StatCard, EmptyState, LoadingState } from '../components/ui';
@@ -51,6 +51,10 @@ const StudentsPage = () => {
 
   const ch = (f, v) => setForm(p => ({ ...p, [f]: v }));
   const grades = [...new Set(students.map(s => s.grade).filter(Boolean))].sort();
+  const sortedStudents = [...students].sort((a, b) =>
+    a.firstName.localeCompare(b.firstName, undefined, { sensitivity: 'base' }) ||
+    a.lastName.localeCompare(b.lastName, undefined, { sensitivity: 'base' })
+  );
 
   return (
     <div>
@@ -79,35 +83,53 @@ const StudentsPage = () => {
         />
       </Group>
 
-      <Paper withBorder radius="md" shadow="sm">
-        {loading ? <LoadingState /> : students.length === 0 ? <EmptyState message="No students found." /> : (
-          <Table.ScrollContainer minWidth={800}>
-            <Table verticalSpacing="sm" highlightOnHover>
-              <Table.Thead>
-                <Table.Tr><Table.Th>Admission No.</Table.Th><Table.Th>Name</Table.Th><Table.Th>Grade</Table.Th><Table.Th>Parent</Table.Th><Table.Th>Pickup</Table.Th><Table.Th>Route(s)</Table.Th><Table.Th>Actions</Table.Th></Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {students.map(s => (
-                  <Table.Tr key={s.id}>
-                    <Table.Td fw={600}>{s.admissionNumber || '-'}</Table.Td>
-                    <Table.Td fw={600}>{s.firstName} {s.lastName}</Table.Td>
-                    <Table.Td>{s.grade || '-'}</Table.Td>
-                    <Table.Td>{s.parent ? `${s.parent.firstName} ${s.parent.lastName}` : <span style={{ color: 'var(--mantine-color-gray-5)' }}>Not linked</span>}</Table.Td>
-                    <Table.Td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.parent?.pickupAddress || '-'}</Table.Td>
-                    <Table.Td>{s.routes?.length > 0 ? <Group gap={4}>{s.routes.map(r => <Badge key={r.id} color="green" variant="light">{r.name}</Badge>)}</Group> : <span style={{ color: 'var(--mantine-color-gray-5)' }}>None</span>}</Table.Td>
-                    <Table.Td>
-                      <Group gap={6}>
-                        <Tooltip label="Edit"><ActionIcon variant="light" onClick={() => openEdit(s)}><IconEdit size={16} /></ActionIcon></Tooltip>
-                        <Tooltip label="Remove"><ActionIcon variant="light" color="red" onClick={() => del(s.id)}><IconTrash size={16} /></ActionIcon></Tooltip>
-                      </Group>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        )}
-      </Paper>
+      {loading ? <Paper withBorder radius="md"><LoadingState /></Paper> : students.length === 0 ? <Paper withBorder radius="md"><EmptyState message="No students found." /></Paper> : (
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+          {sortedStudents.map(s => {
+            const routes = s.routes || [];
+            return (
+              <Paper withBorder radius="md" shadow="sm" p="md" key={s.id}>
+                <Group justify="space-between" align="flex-start" wrap="nowrap">
+                  <Group align="flex-start" wrap="nowrap">
+                    <ThemeIcon size={46} radius="xl" color="blue" variant="light"><IconSchool size={23} /></ThemeIcon>
+                    <Box style={{ minWidth: 0 }}>
+                      <Text fw={800} truncate>{s.firstName} {s.lastName}</Text>
+                      <Badge mt={4} size="sm" variant="light" color="gray">{s.admissionNumber || 'No admission number'}</Badge>
+                    </Box>
+                  </Group>
+                  <Badge color={routes.length ? 'green' : 'orange'} variant="light">{routes.length ? 'Assigned' : 'Unassigned'}</Badge>
+                </Group>
+
+                <SimpleGrid cols={2} spacing="xs" mt="lg">
+                  <Paper bg="blue.0" p="sm">
+                    <Text fz={10} c="dimmed">Grade</Text>
+                    <Text size="sm" fw={750}>{s.grade || 'Not set'}</Text>
+                  </Paper>
+                  <Paper bg={s.parent ? 'green.0' : 'orange.0'} p="sm">
+                    <Group gap={5} wrap="nowrap"><IconUsers size={14} /><Box style={{ minWidth: 0 }}><Text fz={10} c="dimmed">Parent</Text><Text size="xs" fw={750} truncate>{s.parent ? `${s.parent.firstName} ${s.parent.lastName}` : 'Not linked'}</Text></Box></Group>
+                  </Paper>
+                </SimpleGrid>
+
+                <Stack gap="md" mt="md" mih={112}>
+                  <Box>
+                    <Group gap={5}><IconMapPin size={14} /><Text size="xs" c="dimmed">Pickup address</Text></Group>
+                    <Text size="sm" lineClamp={2}>{s.parent?.pickupAddress || 'No pickup address recorded'}</Text>
+                  </Box>
+                  <Box>
+                    <Group gap={5}><IconRoute size={14} /><Text size="xs" c="dimmed">Routes</Text></Group>
+                    {routes.length ? <Group gap={5} mt={4}>{routes.map(route => <Badge key={route.id} color="green" variant="light">{route.name}</Badge>)}</Group> : <Text size="sm" c="dimmed">No route assigned</Text>}
+                  </Box>
+                </Stack>
+
+                <Group justify="space-between" mt="lg" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-gray-2)' }}>
+                  <Button variant="light" size="xs" leftSection={<IconEdit size={15} />} onClick={() => openEdit(s)}>Edit student</Button>
+                  <Tooltip label="Deactivate student"><ActionIcon variant="light" color="red" onClick={() => del(s.id)}><IconTrash size={16} /></ActionIcon></Tooltip>
+                </Group>
+              </Paper>
+            );
+          })}
+        </SimpleGrid>
+      )}
 
       <Modal
         isOpen={modalOpen}

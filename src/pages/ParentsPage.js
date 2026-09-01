@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Group, Button, TextInput, NumberInput, Table, Paper, Alert, Badge, ActionIcon, Tooltip, Text, Select,
-  FileInput, ScrollArea, Title, Stack, Box,
+  FileInput, ScrollArea, Title, Stack, Box, SimpleGrid, ThemeIcon,
 } from '@mantine/core';
 import {
   IconPlus, IconSearch, IconEdit, IconTrash, IconEye, IconAlertCircle, IconCircleCheck, IconUpload,
+  IconUsers, IconPhone, IconMail, IconMapPin,
 } from '@tabler/icons-react';
 import { parentAPI, studentAPI, importAPI } from '../services/api';
 import Modal from '../components/Modal';
@@ -201,11 +202,16 @@ const ParentsPage = () => {
 
   const ch = (f, v) => setForm(p => ({ ...p, [f]: v }));
 
-  const filtered = parents.filter(p => {
-    if (!search) return true;
-    const s = search.toLowerCase();
-    return `${p.firstName} ${p.lastName}`.toLowerCase().includes(s) || p.email.toLowerCase().includes(s);
-  });
+  const filtered = parents
+    .filter(p => {
+      if (!search) return true;
+      const s = search.toLowerCase();
+      return `${p.firstName} ${p.lastName}`.toLowerCase().includes(s) || p.email.toLowerCase().includes(s);
+    })
+    .sort((a, b) =>
+      a.firstName.localeCompare(b.firstName, undefined, { sensitivity: 'base' }) ||
+      a.lastName.localeCompare(b.lastName, undefined, { sensitivity: 'base' })
+    );
 
   return (
     <div>
@@ -230,35 +236,54 @@ const ParentsPage = () => {
         <TextInput placeholder="Search parents by name or email..." leftSection={<IconSearch size={16} />} value={search} onChange={e => setSearch(e.target.value)} w={320} />
       </Group>
 
-      <Paper withBorder radius="md" shadow="sm">
-        {loading ? <LoadingState /> : filtered.length === 0 ? <EmptyState message="No parents found." /> : (
-          <Table.ScrollContainer minWidth={900}>
-            <Table verticalSpacing="sm" highlightOnHover>
-              <Table.Thead>
-                <Table.Tr><Table.Th>Name</Table.Th><Table.Th>Email</Table.Th><Table.Th>Phone</Table.Th><Table.Th>Pickup Address</Table.Th><Table.Th>Children</Table.Th><Table.Th>Actions</Table.Th></Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {filtered.map(p => (
-                  <Table.Tr key={p.id}>
-                    <Table.Td fw={600}>{p.firstName} {p.lastName}</Table.Td>
-                    <Table.Td>{p.email}</Table.Td>
-                    <Table.Td>{p.phone || '-'}</Table.Td>
-                    <Table.Td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.pickupAddress || '-'}</Table.Td>
-                    <Table.Td>{p.children?.length || 0} student{p.children?.length !== 1 ? 's' : ''}</Table.Td>
-                    <Table.Td>
-                      <Group gap={6}>
-                        <Tooltip label="View"><ActionIcon variant="light" onClick={() => openDetail(p)}><IconEye size={16} /></ActionIcon></Tooltip>
-                        <Tooltip label="Edit"><ActionIcon variant="light" onClick={() => openEdit(p)}><IconEdit size={16} /></ActionIcon></Tooltip>
-                        <Tooltip label="Deactivate"><ActionIcon variant="light" color="red" onClick={() => deactivate(p.id)}><IconTrash size={16} /></ActionIcon></Tooltip>
-                      </Group>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        )}
-      </Paper>
+      {loading ? <Paper withBorder radius="md"><LoadingState /></Paper> : filtered.length === 0 ? <Paper withBorder radius="md"><EmptyState message="No parents found." /></Paper> : (
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+          {filtered.map(p => {
+            const children = [...(p.children || [])].sort((a, b) =>
+              a.firstName.localeCompare(b.firstName, undefined, { sensitivity: 'base' }) ||
+              a.lastName.localeCompare(b.lastName, undefined, { sensitivity: 'base' })
+            );
+            return (
+              <Paper withBorder radius="md" shadow="sm" p="md" key={p.id}>
+                <Group justify="space-between" align="flex-start" wrap="nowrap">
+                  <Group align="flex-start" wrap="nowrap">
+                    <ThemeIcon size={46} radius="xl" color="violet" variant="light"><IconUsers size={23} /></ThemeIcon>
+                    <Box style={{ minWidth: 0 }}>
+                      <Button variant="subtle" size="compact-md" px={0} fw={800} onClick={() => openDetail(p)}>{p.firstName} {p.lastName}</Button>
+                      <Text size="xs" c="dimmed">{children.length} {children.length === 1 ? 'child' : 'children'} linked</Text>
+                    </Box>
+                  </Group>
+                  <Badge color={children.length ? 'green' : 'orange'} variant="light">{children.length ? 'Linked' : 'No children'}</Badge>
+                </Group>
+
+                <Stack gap="sm" mt="lg">
+                  <Group gap={8} wrap="nowrap"><ThemeIcon size="sm" color="gray" variant="light"><IconMail size={13} /></ThemeIcon><Text size="sm" truncate>{p.email}</Text></Group>
+                  <Group gap={8} wrap="nowrap"><ThemeIcon size="sm" color="green" variant="light"><IconPhone size={13} /></ThemeIcon><Text size="sm">{p.phone || 'No phone number'}</Text></Group>
+                  <Group gap={8} wrap="nowrap" align="flex-start"><ThemeIcon size="sm" color="red" variant="light"><IconMapPin size={13} /></ThemeIcon><Text size="sm" lineClamp={2}>{p.pickupAddress || 'No pickup address recorded'}</Text></Group>
+                </Stack>
+
+                <Box mt="md" mih={66}>
+                  <Text size="xs" c="dimmed">Children</Text>
+                  {children.length ? (
+                    <Group gap={5} mt={5}>
+                      {children.slice(0, 4).map(child => <Badge key={child.id} color="violet" variant="light">{child.firstName} {child.lastName}</Badge>)}
+                      {children.length > 4 && <Badge color="violet" variant="light">+{children.length - 4}</Badge>}
+                    </Group>
+                  ) : <Text size="sm" c="dimmed">No children linked yet</Text>}
+                </Box>
+
+                <Group justify="space-between" mt="lg" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-gray-2)' }}>
+                  <Group gap={6}>
+                    <Button size="xs" variant="light" leftSection={<IconEye size={14} />} onClick={() => openDetail(p)}>Manage</Button>
+                    <Tooltip label="Edit parent"><ActionIcon variant="light" onClick={() => openEdit(p)}><IconEdit size={16} /></ActionIcon></Tooltip>
+                  </Group>
+                  <Tooltip label="Remove from school"><ActionIcon variant="light" color="red" onClick={() => deactivate(p.id)}><IconTrash size={16} /></ActionIcon></Tooltip>
+                </Group>
+              </Paper>
+            );
+          })}
+        </SimpleGrid>
+      )}
 
       {/* Add/Edit Modal */}
       <Modal
@@ -305,7 +330,10 @@ const ParentsPage = () => {
                 <Table>
                   <Table.Thead><Table.Tr><Table.Th>Name</Table.Th><Table.Th>Grade</Table.Th><Table.Th>Action</Table.Th></Table.Tr></Table.Thead>
                   <Table.Tbody>
-                    {selectedParent.children.map(c => (
+                    {[...selectedParent.children].sort((a, b) =>
+                      a.firstName.localeCompare(b.firstName, undefined, { sensitivity: 'base' }) ||
+                      a.lastName.localeCompare(b.lastName, undefined, { sensitivity: 'base' })
+                    ).map(c => (
                       <Table.Tr key={c.id}>
                         <Table.Td>{c.firstName} {c.lastName}</Table.Td>
                         <Table.Td>{c.grade || '-'}</Table.Td>

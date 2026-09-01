@@ -16,4 +16,5 @@ export const importAPI = {
   importParentsStudents: (file) => { const fd = new FormData(); fd.append('file', file); return api.post('/import/parents-students', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); },
 };
 export const driverAPI = { getAll: () => api.get('/drivers'), getById: id => api.get(`/drivers/${id}`), getTripHistory: (id, days = 30) => api.get(`/drivers/${id}/trip-history`, { params: { days } }), create: d => api.post('/drivers',d), update: (id,d) => api.put(`/drivers/${id}`,d), delete: id => api.delete(`/drivers/${id}`), resetPassword: id => api.post(`/drivers/${id}/reset-password`) };
+export const messageAPI = { sendTripNotification: data => api.post('/messages/trip-notification', data) };
 export default api;
