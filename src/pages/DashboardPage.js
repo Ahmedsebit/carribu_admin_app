@@ -1,15 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActionIcon, Badge, Box, Button, Grid, Group, Paper, Progress, SegmentedControl, SimpleGrid, Stack, Text, ThemeIcon, Title, Tooltip,
+  ActionIcon, Badge, Box, Button, Grid, Group, MultiSelect, Paper, Progress, SegmentedControl, SimpleGrid, Stack, Text, Textarea, ThemeIcon, Title, Tooltip,
 } from '@mantine/core';
 import {
   IconAlertTriangle, IconBackpack, IconBus, IconCheck, IconClock, IconMapPin,
-  IconRefresh, IconRoute, IconSteeringWheel,
+  IconBell, IconRefresh, IconRoute, IconSend, IconSteeringWheel,
 } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { driverAPI, locationAPI, schoolAPI, tripAPI, vehicleAPI } from '../services/api';
+import { driverAPI, locationAPI, messageAPI, schoolAPI, tripAPI, vehicleAPI } from '../services/api';
 import { EmptyState, LoadingState, statusColor } from '../components/ui';
+import Modal from '../components/Modal';
 
 const SUMMARY_CARDS = [
   { key: 'studentCount', label: 'Total Students', icon: IconBackpack, color: '#e54867', background: '#fff0f3' },
@@ -43,6 +44,13 @@ const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [notificationAudience, setNotificationAudience] = useState('all');
+  const [selectedTripIds, setSelectedTripIds] = useState([]);
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [notificationSending, setNotificationSending] = useState(false);
+  const [notificationError, setNotificationError] = useState('');
+  const [notificationResult, setNotificationResult] = useState('');
 
   const loadDashboard = useCallback(async (isRefresh = false) => {
     if (!user?.schoolId) return;
@@ -223,6 +231,49 @@ const DashboardPage = () => {
     }));
   }, [locations]);
 
+  const tripOptions = useMemo(() => trips.map(trip => ({
+    value: String(trip.id),
+    label: `${trip.route?.name || 'Unnamed route'} • ${trip.type === 'morning_pickup' ? 'Morning' : 'Afternoon'} • ${trip.scheduledTime ? trip.scheduledTime.slice(0, 5) : 'Time not set'}`,
+  })), [trips]);
+
+  const openNotification = () => {
+    setNotificationAudience('all');
+    setSelectedTripIds([]);
+    setNotificationMessage('');
+    setNotificationError('');
+    setNotificationOpen(true);
+  };
+
+  const sendNotification = async () => {
+    const content = notificationMessage.trim();
+    if (!content) {
+      setNotificationError('Enter a message for parents.');
+      return;
+    }
+    if (notificationAudience === 'selected' && selectedTripIds.length === 0) {
+      setNotificationError('Select at least one trip.');
+      return;
+    }
+
+    setNotificationSending(true);
+    setNotificationError('');
+    try {
+      const { data } = await messageAPI.sendTripNotification({
+        content,
+        allTrips: notificationAudience === 'all',
+        tripIds: notificationAudience === 'selected' ? selectedTripIds.map(Number) : [],
+        date: new Date().toISOString().split('T')[0],
+      });
+      setNotificationResult(`${data.message} (${data.tripCount} ${data.tripCount === 1 ? 'trip' : 'trips'})`);
+      setNotificationOpen(false);
+      setTimeout(() => setNotificationResult(''), 6000);
+    } catch (err) {
+      setNotificationError(err.response?.data?.error || 'Notification could not be sent.');
+    } finally {
+      setNotificationSending(false);
+    }
+  };
+
   if (loading) return <LoadingState label="Loading dashboard..." />;
 
   return (
@@ -233,6 +284,7 @@ const DashboardPage = () => {
           <Text c="dimmed" size="sm">Welcome back, {user?.firstName}. Here is today&apos;s transport overview.</Text>
         </Box>
         <Group gap="sm">
+          <Button leftSection={<IconBell size={17} />} onClick={openNotification}>Notify parents</Button>
           <Paper withBorder px="md" py="xs" radius="md">
             <Text size="xs" c="dimmed">Today</Text>
             <Text size="sm" fw={600}>{new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
@@ -248,6 +300,11 @@ const DashboardPage = () => {
       {error && (
         <Paper withBorder p="sm" bg="red.0" style={{ borderColor: 'var(--mantine-color-red-2)' }}>
           <Text c="red.7" size="sm">{error}</Text>
+        </Paper>
+      )}
+      {notificationResult && (
+        <Paper withBorder p="sm" bg="green.0" style={{ borderColor: 'var(--mantine-color-green-2)' }}>
+          <Text c="green.8" size="sm" fw={650}>{notificationResult}</Text>
         </Paper>
       )}
 
@@ -522,6 +579,67 @@ const DashboardPage = () => {
           </Paper>
         </Grid.Col>
       </Grid>
+
+      <Modal
+        isOpen={notificationOpen}
+        onClose={() => setNotificationOpen(false)}
+        title="Notify parents"
+        footer={(
+          <>
+            <Button variant="default" onClick={() => setNotificationOpen(false)}>Cancel</Button>
+            <Button
+              leftSection={<IconSend size={16} />}
+              loading={notificationSending}
+              disabled={trips.length === 0 || !notificationMessage.trim() || (notificationAudience === 'selected' && selectedTripIds.length === 0)}
+              onClick={sendNotification}
+            >
+              Send notification
+            </Button>
+          </>
+        )}
+      >
+        <Text size="sm" c="dimmed">
+          Each parent receives one notification, even when their children appear on multiple selected trips.
+        </Text>
+        <SegmentedControl
+          fullWidth
+          value={notificationAudience}
+          onChange={setNotificationAudience}
+          data={[
+            { value: 'all', label: `All today's trips (${trips.length})` },
+            { value: 'selected', label: 'Selected trips' },
+          ]}
+        />
+        {notificationAudience === 'selected' && (
+          <MultiSelect
+            label="Trips"
+            placeholder="Select one or more trips"
+            data={tripOptions}
+            value={selectedTripIds}
+            onChange={setSelectedTripIds}
+            searchable
+            clearable
+          />
+        )}
+        <Textarea
+          label="Message"
+          description="This appears in the parent app's Notifications screen and as a phone notification when enabled."
+          placeholder="Enter the transport update for parents..."
+          minRows={5}
+          maxLength={2000}
+          value={notificationMessage}
+          onChange={event => setNotificationMessage(event.currentTarget.value)}
+          required
+        />
+        <Group justify="space-between">
+          <Text size="xs" c="dimmed">
+            {notificationAudience === 'all' ? `Targets parents across all ${trips.length} trips today` : `${selectedTripIds.length} trips selected`}
+          </Text>
+          <Text size="xs" c="dimmed">{notificationMessage.length}/2000</Text>
+        </Group>
+        {trips.length === 0 && <Text size="sm" c="orange.7">There are no trips scheduled today.</Text>}
+        {notificationError && <Text size="sm" c="red.7">{notificationError}</Text>}
+      </Modal>
     </Stack>
   );
 };
