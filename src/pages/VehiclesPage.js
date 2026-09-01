@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Group, Button, TextInput, Select, Table, Paper, Alert, Badge, ActionIcon, Tooltip, NumberInput, Stack,
+  Group, Button, TextInput, Select, Paper, Alert, Badge, ActionIcon, Tooltip, NumberInput, Stack, SimpleGrid, Text, Box, ThemeIcon,
 } from '@mantine/core';
-import { IconPlus, IconSearch, IconEdit, IconTrash, IconAlertCircle, IconCircleCheck } from '@tabler/icons-react';
+import { IconPlus, IconSearch, IconEdit, IconTrash, IconAlertCircle, IconCircleCheck, IconEye, IconBus } from '@tabler/icons-react';
+import { useNavigate } from 'react-router-dom';
 import { vehicleAPI } from '../services/api';
 import Modal from '../components/Modal';
 import { PageHeader, StatsGrid, StatCard, StatusBadge, EmptyState, LoadingState } from '../components/ui';
@@ -10,6 +11,7 @@ import { PageHeader, StatsGrid, StatCard, StatusBadge, EmptyState, LoadingState 
 const empty = { plateNumber: '', make: '', model: '', year: '', capacity: 30, color: '', status: 'active', insuranceExpiry: '', lastServiceDate: '' };
 
 const VehiclesPage = () => {
+  const navigate = useNavigate();
   const [vehicles, setVehicles] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -86,40 +88,66 @@ const VehiclesPage = () => {
         />
       </Group>
 
-      <Paper withBorder radius="md" shadow="sm">
-        {loading ? <LoadingState /> : vehicles.length === 0 ? <EmptyState message="No vehicles found." /> : (
-          <Table.ScrollContainer minWidth={900}>
-            <Table verticalSpacing="sm" highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Plate</Table.Th><Table.Th>Make/Model</Table.Th><Table.Th>Year</Table.Th><Table.Th>Capacity</Table.Th>
-                  <Table.Th>Color</Table.Th><Table.Th>Status</Table.Th><Table.Th>Routes</Table.Th><Table.Th>Insurance</Table.Th><Table.Th>Actions</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {vehicles.map(v => (
-                  <Table.Tr key={v.id}>
-                    <Table.Td fw={600}>{v.plateNumber}</Table.Td>
-                    <Table.Td>{v.make} {v.model}</Table.Td>
-                    <Table.Td>{v.year || '-'}</Table.Td>
-                    <Table.Td>{v.capacity} seats</Table.Td>
-                    <Table.Td>{v.color || '-'}</Table.Td>
-                    <Table.Td><StatusBadge status={v.status}>{v.status}</StatusBadge></Table.Td>
-                    <Table.Td>{v.routes?.length > 0 ? v.routes.map(r => r.name).join(', ') : <span style={{ color: 'var(--mantine-color-gray-5)' }}>Unassigned</span>}</Table.Td>
-                    <Table.Td>{v.insuranceExpiry || '-'}</Table.Td>
-                    <Table.Td>
-                      <Group gap={6}>
-                        <Tooltip label="Edit"><ActionIcon variant="light" onClick={() => openEdit(v)}><IconEdit size={16} /></ActionIcon></Tooltip>
-                        <Tooltip label="Retire"><ActionIcon variant="light" color="red" onClick={() => del(v.id)}><IconTrash size={16} /></ActionIcon></Tooltip>
-                      </Group>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        )}
-      </Paper>
+      {loading ? <Paper withBorder><LoadingState /></Paper> : vehicles.length === 0 ? <Paper withBorder><EmptyState message="No vehicles found." /></Paper> : (
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+          {vehicles.map(v => (
+            <Paper key={v.id} withBorder radius="md" shadow="sm" p="md">
+              <Group justify="space-between" align="flex-start" wrap="nowrap">
+                <Group align="flex-start" wrap="nowrap">
+                  <ThemeIcon size={44} radius="md" color="blue" variant="light"><IconBus size={23} /></ThemeIcon>
+                  <Box style={{ minWidth: 0 }}>
+                    <Button variant="subtle" size="compact-md" px={0} fw={800} onClick={() => navigate(`/vehicles/${v.id}`)}>{v.plateNumber}</Button>
+                    <Text size="sm" c="dimmed" truncate>{[v.make, v.model, v.year].filter(Boolean).join(' • ') || 'Vehicle details not recorded'}</Text>
+                  </Box>
+                </Group>
+                <StatusBadge status={v.status}>{v.status}</StatusBadge>
+              </Group>
+
+              <SimpleGrid cols={3} spacing="xs" mt="lg">
+                <Paper bg="gray.0" p="sm" ta="center">
+                  <Text fw={800}>{v.capacity}</Text>
+                  <Text fz={10} c="dimmed">Seats</Text>
+                </Paper>
+                <Paper bg="gray.0" p="sm" ta="center">
+                  <Text fw={800}>{v.color || '—'}</Text>
+                  <Text fz={10} c="dimmed">Color</Text>
+                </Paper>
+                <Paper bg="gray.0" p="sm" ta="center">
+                  <Text fw={800}>{v.routes?.length || 0}</Text>
+                  <Text fz={10} c="dimmed">Routes</Text>
+                </Paper>
+              </SimpleGrid>
+
+              <Stack gap="sm" mt="md">
+                <Box>
+                  <Text size="xs" c="dimmed">Assigned routes</Text>
+                  {v.routes?.length ? (
+                    <Group gap={5} mt={4}>
+                      {v.routes.map(route => <Badge key={route.id} size="sm" variant="light" color="blue">{route.name}</Badge>)}
+                    </Group>
+                  ) : <Text size="sm" c="dimmed">Unassigned</Text>}
+                </Box>
+                <Group justify="space-between">
+                  <Text size="xs" c="dimmed">Insurance expiry</Text>
+                  <Text size="sm" fw={650}>{v.insuranceExpiry || 'Not recorded'}</Text>
+                </Group>
+                <Group justify="space-between">
+                  <Text size="xs" c="dimmed">Last service</Text>
+                  <Text size="sm" fw={650}>{v.lastServiceDate || 'Not recorded'}</Text>
+                </Group>
+              </Stack>
+
+              <Group justify="space-between" mt="lg" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-gray-2)' }}>
+                <Button variant="light" size="xs" leftSection={<IconEye size={15} />} onClick={() => navigate(`/vehicles/${v.id}`)}>View details</Button>
+                <Group gap={6}>
+                  <Tooltip label="Edit"><ActionIcon variant="light" onClick={() => openEdit(v)}><IconEdit size={16} /></ActionIcon></Tooltip>
+                  <Tooltip label="Retire"><ActionIcon variant="light" color="red" onClick={() => del(v.id)}><IconTrash size={16} /></ActionIcon></Tooltip>
+                </Group>
+              </Group>
+            </Paper>
+          ))}
+        </SimpleGrid>
+      )}
 
       <Modal
         isOpen={modalOpen}
