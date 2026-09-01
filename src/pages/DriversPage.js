@@ -64,9 +64,18 @@ const DriversPage = () => {
     } catch (e) { setError(e.response?.data?.error || 'Failed to reset password'); setTimeout(() => setError(''), 5000); }
   };
 
-  const deactivate = async id => {
-    if (!window.confirm('Deactivate this driver?')) return;
-    try { await driverAPI.delete(id); setSuccess('Driver deactivated.'); fetchDrivers(); setTimeout(() => setSuccess(''), 3000); } catch (e) { console.error(e); }
+  const deleteDriver = async id => {
+    if (!window.confirm('Permanently delete this driver? They will be removed from assigned routes and trips.')) return;
+    setError('');
+    try {
+      await driverAPI.delete(id);
+      setSuccess('Driver deleted.');
+      fetchDrivers();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (e) {
+      setError(e.response?.data?.error || 'Failed to delete driver');
+      setTimeout(() => setError(''), 5000);
+    }
   };
 
   const ch = (f, v) => setForm(p => ({ ...p, [f]: v }));
@@ -123,7 +132,7 @@ const DriversPage = () => {
                       <Group gap={6}>
                         <Tooltip label="Edit"><ActionIcon variant="light" onClick={() => openEdit(d)}><IconEdit size={16} /></ActionIcon></Tooltip>
                         <Tooltip label="Reset Password"><ActionIcon variant="light" color="yellow" onClick={() => resetPassword(d.id)}><IconKey size={16} /></ActionIcon></Tooltip>
-                        <Tooltip label="Deactivate"><ActionIcon variant="light" color="red" onClick={() => deactivate(d.id)}><IconTrash size={16} /></ActionIcon></Tooltip>
+                        <Tooltip label="Delete"><ActionIcon variant="light" color="red" onClick={() => deleteDriver(d.id)}><IconTrash size={16} /></ActionIcon></Tooltip>
                       </Group>
                     </Table.Td>
                   </Table.Tr>
