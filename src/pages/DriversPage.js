@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Group, Button, TextInput, Table, Paper, Alert, Badge, ActionIcon, Tooltip, Text } from '@mantine/core';
-import { IconPlus, IconSearch, IconEdit, IconTrash, IconAlertCircle, IconCircleCheck, IconKey } from '@tabler/icons-react';
+import { Group, Button, TextInput, Paper, Alert, Badge, ActionIcon, Tooltip, Text, SimpleGrid, Box, ThemeIcon, Stack } from '@mantine/core';
+import { IconPlus, IconSearch, IconEdit, IconTrash, IconAlertCircle, IconCircleCheck, IconKey, IconSteeringWheel, IconBus, IconRoute } from '@tabler/icons-react';
 import { driverAPI } from '../services/api';
+import { useNavigate } from 'react-router-dom';
 import Modal from '../components/Modal';
 import { PageHeader, StatsGrid, StatCard, EmptyState, LoadingState } from '../components/ui';
 
 const emptyForm = { firstName: '', lastName: '', email: '', phone: '' };
 
 const DriversPage = () => {
+  const navigate = useNavigate();
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -113,35 +115,70 @@ const DriversPage = () => {
         <TextInput placeholder="Search drivers by name or email..." leftSection={<IconSearch size={16} />} value={search} onChange={e => setSearch(e.target.value)} w={320} />
       </Group>
 
-      <Paper withBorder radius="md" shadow="sm">
-        {loading ? <LoadingState /> : filtered.length === 0 ? <EmptyState message="No drivers found." /> : (
-          <Table.ScrollContainer minWidth={900}>
-            <Table verticalSpacing="sm" highlightOnHover>
-              <Table.Thead>
-                <Table.Tr><Table.Th>Name</Table.Th><Table.Th>Email</Table.Th><Table.Th>Phone</Table.Th><Table.Th>Routes</Table.Th><Table.Th>Vehicle</Table.Th><Table.Th>Actions</Table.Th></Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {filtered.map(d => (
-                  <Table.Tr key={d.id}>
-                    <Table.Td fw={600}>{d.firstName} {d.lastName}</Table.Td>
-                    <Table.Td>{d.email}</Table.Td>
-                    <Table.Td>{d.phone || '-'}</Table.Td>
-                    <Table.Td>{d.assignedRoutes?.length > 0 ? <Group gap={4}>{d.assignedRoutes.map(r => <Badge key={r.id} color="green" variant="light">{r.name}</Badge>)}</Group> : <span style={{ color: 'var(--mantine-color-gray-5)' }}>None</span>}</Table.Td>
-                    <Table.Td>{d.assignedRoutes?.find(r => r.vehicle) ? <Group gap={4}>{d.assignedRoutes.filter(r => r.vehicle).map(r => <Badge key={r.id} color="blue" variant="light">{r.vehicle.plateNumber}</Badge>)}</Group> : <span style={{ color: 'var(--mantine-color-gray-5)' }}>-</span>}</Table.Td>
-                    <Table.Td>
-                      <Group gap={6}>
-                        <Tooltip label="Edit"><ActionIcon variant="light" onClick={() => openEdit(d)}><IconEdit size={16} /></ActionIcon></Tooltip>
-                        <Tooltip label="Reset Password"><ActionIcon variant="light" color="yellow" onClick={() => resetPassword(d.id)}><IconKey size={16} /></ActionIcon></Tooltip>
-                        <Tooltip label="Delete"><ActionIcon variant="light" color="red" onClick={() => deleteDriver(d.id)}><IconTrash size={16} /></ActionIcon></Tooltip>
+      {loading ? <Paper withBorder><LoadingState /></Paper> : filtered.length === 0 ? <Paper withBorder><EmptyState message="No drivers found." /></Paper> : (
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+          {filtered.map(d => {
+            const routes = d.assignedRoutes || [];
+            const vehicles = routes.filter(route => route.vehicle);
+            return (
+              <Paper key={d.id} withBorder radius="md" shadow="sm" p="md">
+                <Group justify="space-between" align="flex-start" wrap="nowrap">
+                  <Group align="flex-start" wrap="nowrap">
+                    <ThemeIcon size={46} radius="xl" color="green" variant="light"><IconSteeringWheel size={23} /></ThemeIcon>
+                    <Box style={{ minWidth: 0 }}>
+                      <Button variant="subtle" size="compact-md" px={0} fw={800} onClick={() => navigate(`/drivers/${d.id}`)}>{d.firstName} {d.lastName}</Button>
+                      <Text size="xs" c="dimmed" truncate>{d.email}</Text>
+                      <Text size="xs" c="dimmed">{d.phone || 'No phone number'}</Text>
+                    </Box>
+                  </Group>
+                  <Badge color={routes.length ? 'green' : 'gray'} variant="light">{routes.length ? 'Assigned' : 'Available'}</Badge>
+                </Group>
+
+                <SimpleGrid cols={2} spacing="xs" mt="lg">
+                  <Paper bg="green.0" p="sm" ta="center">
+                    <Group justify="center" gap={5}><IconRoute size={14} /><Text fw={800}>{routes.length}</Text></Group>
+                    <Text fz={10} c="dimmed">Routes</Text>
+                  </Paper>
+                  <Paper bg="blue.0" p="sm" ta="center">
+                    <Group justify="center" gap={5}><IconBus size={14} /><Text fw={800}>{vehicles.length}</Text></Group>
+                    <Text fz={10} c="dimmed">Vehicles</Text>
+                  </Paper>
+                </SimpleGrid>
+
+                <Stack gap="md" mt="md" mih={112}>
+                  <Box>
+                    <Text size="xs" c="dimmed">Assigned routes</Text>
+                    {routes.length ? (
+                      <Group gap={5} mt={4}>
+                        {routes.map(route => <Badge key={route.id} color="green" variant="light">{route.name}</Badge>)}
                       </Group>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        )}
-      </Paper>
+                    ) : <Text size="sm" c="dimmed">No route assigned</Text>}
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed">Vehicles</Text>
+                    {vehicles.length ? (
+                      <Group gap={5} mt={4}>
+                        {vehicles.map(route => <Badge key={route.id} color="blue" variant="light">{route.vehicle.plateNumber}</Badge>)}
+                      </Group>
+                    ) : <Text size="sm" c="dimmed">No vehicle assigned</Text>}
+                  </Box>
+                </Stack>
+
+                <Group justify="space-between" mt="lg" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-gray-2)' }}>
+                  <Group gap={6}>
+                    <Button variant="light" size="xs" onClick={() => navigate(`/drivers/${d.id}`)}>Statistics</Button>
+                    <Tooltip label="Edit"><ActionIcon variant="light" onClick={() => openEdit(d)}><IconEdit size={16} /></ActionIcon></Tooltip>
+                  </Group>
+                  <Group gap={6}>
+                    <Tooltip label="Reset Password"><ActionIcon variant="light" color="yellow" onClick={() => resetPassword(d.id)}><IconKey size={16} /></ActionIcon></Tooltip>
+                    <Tooltip label="Delete"><ActionIcon variant="light" color="red" onClick={() => deleteDriver(d.id)}><IconTrash size={16} /></ActionIcon></Tooltip>
+                  </Group>
+                </Group>
+              </Paper>
+            );
+          })}
+        </SimpleGrid>
+      )}
 
       <Modal
         isOpen={modalOpen}

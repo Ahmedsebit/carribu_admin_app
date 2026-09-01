@@ -6,11 +6,15 @@ import AppLayout from './components/AppLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import VehiclesPage from './pages/VehiclesPage';
+import VehicleDetailsPage from './pages/VehicleDetailsPage';
 import StudentsPage from './pages/StudentsPage';
 import RoutesPage from './pages/RoutesPage';
+import RouteDetailsPage from './pages/RouteDetailsPage';
 import TripsPage from './pages/TripsPage';
+import TripDetailsPage from './pages/TripDetailsPage';
 import ParentsPage from './pages/ParentsPage';
 import DriversPage from './pages/DriversPage';
+import DriverDetailsPage from './pages/DriverDetailsPage';
 
 const ProtectedRoute = ({children}) => {
   const {isAuthenticated,loading}=useAuth();
@@ -24,11 +28,15 @@ const AppRoutes = () => {
       <Route path="/login" element={isAuthenticated?<Navigate to="/dashboard"/>:<LoginPage/>}/>
       <Route path="/dashboard" element={<ProtectedRoute><AppLayout><DashboardPage/></AppLayout></ProtectedRoute>}/>
       <Route path="/vehicles" element={<ProtectedRoute><AppLayout><VehiclesPage/></AppLayout></ProtectedRoute>}/>
+      <Route path="/vehicles/:id" element={<ProtectedRoute><AppLayout><VehicleDetailsPage/></AppLayout></ProtectedRoute>}/>
       <Route path="/students" element={<ProtectedRoute><AppLayout><StudentsPage/></AppLayout></ProtectedRoute>}/>
       <Route path="/routes" element={<ProtectedRoute><AppLayout><RoutesPage/></AppLayout></ProtectedRoute>}/>
+      <Route path="/routes/:id" element={<ProtectedRoute><AppLayout><RouteDetailsPage/></AppLayout></ProtectedRoute>}/>
       <Route path="/trips" element={<ProtectedRoute><AppLayout><TripsPage/></AppLayout></ProtectedRoute>}/>
+      <Route path="/trips/:id" element={<ProtectedRoute><AppLayout><TripDetailsPage/></AppLayout></ProtectedRoute>}/>
       <Route path="/parents" element={<ProtectedRoute><AppLayout><ParentsPage/></AppLayout></ProtectedRoute>}/>
       <Route path="/drivers" element={<ProtectedRoute><AppLayout><DriversPage/></AppLayout></ProtectedRoute>}/>
+      <Route path="/drivers/:id" element={<ProtectedRoute><AppLayout><DriverDetailsPage/></AppLayout></ProtectedRoute>}/>
       <Route path="*" element={<Navigate to="/dashboard"/>}/>
     </Routes>);
 };

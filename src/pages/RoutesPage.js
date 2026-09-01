@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Group, Button, TextInput, Textarea, Select, Table, Paper, Alert, Badge, Text, Title, Stack, Box,
-  Checkbox, SimpleGrid, ScrollArea, Collapse, ActionIcon, Switch,
+  Group, Button, TextInput, Textarea, Select, Paper, Alert, Badge, Text, Stack, Box,
+  Checkbox, SimpleGrid, ScrollArea, ActionIcon, Switch, ThemeIcon, Tooltip,
 } from '@mantine/core';
 import {
-  IconPlus, IconEdit, IconAlertCircle, IconCircleCheck, IconChevronDown, IconChevronUp, IconX, IconTarget,
+  IconPlus, IconEdit, IconAlertCircle, IconCircleCheck, IconX, IconTarget,
+  IconRoute, IconBus, IconSteeringWheel, IconUsers, IconClock,
 } from '@tabler/icons-react';
+import { useNavigate } from 'react-router-dom';
 import { routeAPI, vehicleAPI, studentAPI, driverAPI } from '../services/api';
 import Modal from '../components/Modal';
 import { PageHeader, StatsGrid, StatCard, StatusBadge, EmptyState, LoadingState } from '../components/ui';
@@ -216,6 +218,7 @@ const WaypointChips = ({ waypoints, onChange }) => (
 );
 
 const RoutesPage = () => {
+  const navigate = useNavigate();
   const [routes, setRoutes] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [students, setStudents] = useState([]);
@@ -227,7 +230,6 @@ const RoutesPage = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [expanded, setExpanded] = useState(null);
   const [suggested, setSuggested] = useState(null);
   const [suggesting, setSuggesting] = useState(false);
 
@@ -326,47 +328,53 @@ const RoutesPage = () => {
       </StatsGrid>
 
       {loading ? <LoadingState /> : routes.length === 0 ? <Paper withBorder radius="md"><EmptyState message="No routes yet." /></Paper> : (
-        <Stack gap="md">
+        <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }} spacing="md">
           {routes.map(r => (
-            <Paper withBorder radius="md" shadow="sm" key={r.id}>
-              <Group justify="space-between" p="md" style={{ cursor: 'pointer', borderBottom: expanded === r.id ? '1px solid var(--mantine-color-gray-2)' : 'none' }} onClick={() => setExpanded(expanded === r.id ? null : r.id)}>
-                <Group gap="sm">
-                  <Title order={4}>{r.name}</Title>
-                  <StatusBadge status={r.type}>{r.type}</StatusBadge>
-                  {r.isActive ? <StatusBadge status="active">Active</StatusBadge> : <StatusBadge status="retired">Inactive</StatusBadge>}
+            <Paper withBorder radius="md" shadow="sm" p="md" key={r.id}>
+              <Group justify="space-between" align="flex-start" wrap="nowrap">
+                <Group align="flex-start" wrap="nowrap">
+                  <ThemeIcon size={46} radius="xl" color="violet" variant="light"><IconRoute size={23} /></ThemeIcon>
+                  <Box style={{ minWidth: 0 }}>
+                    <Button variant="subtle" size="compact-md" px={0} fw={800} onClick={() => navigate(`/routes/${r.id}`)}>{r.name}</Button>
+                    <Group gap={5}>
+                      <StatusBadge status={r.type}>{r.type}</StatusBadge>
+                      {r.isActive ? <StatusBadge status="active">Active</StatusBadge> : <StatusBadge status="retired">Inactive</StatusBadge>}
+                    </Group>
+                  </Box>
                 </Group>
-                <Group gap={8}>
-                  <ActionIcon variant="light" onClick={e => { e.stopPropagation(); openEdit(r); }}><IconEdit size={16} /></ActionIcon>
-                  <ActionIcon variant="subtle">{expanded === r.id ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}</ActionIcon>
-                </Group>
+                <Tooltip label="Edit route"><ActionIcon variant="light" onClick={() => openEdit(r)}><IconEdit size={16} /></ActionIcon></Tooltip>
               </Group>
-              <Box p="md">
-                <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="sm">
-                  <Text size="sm"><strong>Vehicle:</strong> {r.vehicle ? `${r.vehicle.plateNumber} (${r.vehicle.make} ${r.vehicle.model}, ${r.vehicle.capacity} seats)` : <Text span c="dimmed">Unassigned</Text>}</Text>
-                  <Text size="sm"><strong>Driver:</strong> {r.driver ? `${r.driver.firstName} ${r.driver.lastName}` : <Text span c="dimmed">Unassigned</Text>}</Text>
-                  <Text size="sm"><strong>Departure:</strong> {r.departureTime || 'Not set'}</Text>
-                  <Text size="sm"><strong>Students:</strong> {r.students?.length || 0}</Text>
-                </SimpleGrid>
-                {r.grades && r.grades.length > 0 && <Text size="xs" mt={8}><strong>Grades:</strong> {r.grades.join(', ')}</Text>}
-                <Collapse in={expanded === r.id}>
-                  {r.students?.length > 0 && (
-                    <Box mt="md">
-                      <Text size="sm" fw={600} mb={8}>Assigned Students:</Text>
-                      <Table>
-                        <Table.Thead><Table.Tr><Table.Th>#</Table.Th><Table.Th>Student</Table.Th><Table.Th>Grade</Table.Th></Table.Tr></Table.Thead>
-                        <Table.Tbody>
-                          {r.students.sort((a, b) => (a.RouteStudent?.stopOrder || 0) - (b.RouteStudent?.stopOrder || 0)).map((s, i) => (
-                            <Table.Tr key={s.id}><Table.Td>{i + 1}</Table.Td><Table.Td>{s.firstName} {s.lastName}</Table.Td><Table.Td>{s.grade || '-'}</Table.Td></Table.Tr>
-                          ))}
-                        </Table.Tbody>
-                      </Table>
-                    </Box>
-                  )}
-                </Collapse>
+
+              <SimpleGrid cols={2} spacing="xs" mt="lg">
+                <Paper bg="blue.0" p="sm">
+                  <Group gap={6} wrap="nowrap"><IconBus size={15} /><Box style={{ minWidth: 0 }}><Text fz={10} c="dimmed">Vehicle</Text><Text size="xs" fw={750} truncate>{r.vehicle?.plateNumber || 'Unassigned'}</Text></Box></Group>
+                </Paper>
+                <Paper bg="green.0" p="sm">
+                  <Group gap={6} wrap="nowrap"><IconSteeringWheel size={15} /><Box style={{ minWidth: 0 }}><Text fz={10} c="dimmed">Driver</Text><Text size="xs" fw={750} truncate>{r.driver ? `${r.driver.firstName} ${r.driver.lastName}` : 'Unassigned'}</Text></Box></Group>
+                </Paper>
+                <Paper bg="orange.0" p="sm">
+                  <Group gap={6}><IconClock size={15} /><Box><Text fz={10} c="dimmed">Departure</Text><Text size="xs" fw={750}>{r.departureTime || 'Not set'}</Text></Box></Group>
+                </Paper>
+                <Paper bg="violet.0" p="sm">
+                  <Group gap={6}><IconUsers size={15} /><Box><Text fz={10} c="dimmed">Students</Text><Text size="xs" fw={750}>{r.students?.length || 0} assigned</Text></Box></Group>
+                </Paper>
+              </SimpleGrid>
+
+              <Box mt="md" mih={76}>
+                <Text size="xs" c="dimmed">Grades served</Text>
+                <Group gap={5} mt={5}>
+                  {r.grades?.length ? r.grades.slice(0, 5).map(grade => <Badge key={grade} size="sm" variant="light" color="gray">{grade}</Badge>) : <Text size="sm" c="dimmed">No grades selected</Text>}
+                  {r.grades?.length > 5 && <Badge size="sm" variant="light" color="gray">+{r.grades.length - 5}</Badge>}
+                </Group>
               </Box>
+
+              <Group justify="space-between" mt="lg" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-gray-2)' }}>
+                <Button variant="light" size="xs" onClick={() => navigate(`/routes/${r.id}`)}>Statistics</Button>
+                <Text size="xs" c="dimmed">{r.description || `${r.students?.length || 0} students on this route`}</Text>
+              </Group>
             </Paper>
           ))}
-        </Stack>
+        </SimpleGrid>
       )}
 
       <Modal

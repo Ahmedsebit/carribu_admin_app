@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import {
   Group, Button, TextInput, Select, Table, Paper, Alert, Badge, Text, Title, Stack, Box, Grid, Anchor,
+  SimpleGrid, Progress, ThemeIcon,
 } from '@mantine/core';
 import {
-  IconPlus, IconAlertCircle, IconCircleCheck, IconPlayerPlay, IconPlayerStop, IconBroadcast, IconClipboardList,
+  IconPlus, IconAlertCircle, IconCircleCheck, IconPlayerPlay, IconPlayerStop, IconBroadcast, IconClipboardList, IconEye,
+  IconRoute, IconBus, IconSteeringWheel, IconUsers,
 } from '@tabler/icons-react';
+import { useNavigate } from 'react-router-dom';
 import { tripAPI, routeAPI, locationAPI } from '../services/api';
 import Modal from '../components/Modal';
 import { classifyTimeliness } from '../utils/tripTimeliness';
 import { PageHeader, StatsGrid, StatCard, StatusBadge, EmptyState, LoadingState } from '../components/ui';
 
 const TripsPage = () => {
+  const navigate = useNavigate();
   const [trips, setTrips] = useState([]);
   const [routes, setRoutes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -168,46 +172,76 @@ const TripsPage = () => {
         <Button variant="default" size="sm" onClick={() => { setDateFilter(''); setStatusFilter(''); setTimelinessFilter(''); }}>Clear</Button>
       </Group>
 
-      <Paper withBorder radius="md" shadow="sm">
-        {loading ? <LoadingState /> : visibleTrips.length === 0 ? <EmptyState message="No trips found." /> : (
-          <Table.ScrollContainer minWidth={1100}>
-            <Table verticalSpacing="sm" highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Route</Table.Th><Table.Th>Vehicle</Table.Th><Table.Th>Driver</Table.Th><Table.Th>Type</Table.Th><Table.Th>Date</Table.Th>
-                  <Table.Th>Time</Table.Th><Table.Th>Timeliness</Table.Th><Table.Th>Students</Table.Th><Table.Th>Status</Table.Th><Table.Th>Actions</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {visibleTrips.map(t => {
-                  const tl = timeliness(t);
-                  return (
-                    <Table.Tr key={t.id}>
-                      <Table.Td fw={600}>{t.route?.name || '-'}</Table.Td>
-                      <Table.Td>{t.vehicle?.plateNumber || '-'}</Table.Td>
-                      <Table.Td>{t.driver ? `${t.driver.firstName} ${t.driver.lastName}` : '-'}</Table.Td>
-                      <Table.Td><Badge color={t.type === 'morning_pickup' ? 'yellow' : 'blue'} variant="light">{t.type === 'morning_pickup' ? '🌅 Morning' : '🌇 Afternoon'}</Badge></Table.Td>
-                      <Table.Td>{t.scheduledDate}</Table.Td>
-                      <Table.Td>{t.scheduledTime ? `🕒 ${fmtClock(t.scheduledTime)}` : '—'}</Table.Td>
-                      <Table.Td>{tl ? <StatusBadge status={tl.key}>{tl.icon} {tl.label}</StatusBadge> : '—'}</Table.Td>
-                      <Table.Td>{t.studentStats ? <Text size="xs">{t.studentStats.total} total{t.status === 'in_progress' ? ` · ${t.studentStats.onBus} on bus · ${t.studentStats.droppedOff} done · ${t.studentStats.absent} absent` : ''}</Text> : '-'}</Table.Td>
-                      <Table.Td><StatusBadge status={t.status}>{t.status.replace('_', ' ')}</StatusBadge></Table.Td>
-                      <Table.Td>
-                        <Group gap={6}>
-                          {(t.status === 'scheduled' || t.status === 'delayed') && <Button size="xs" color="green" leftSection={<IconPlayerPlay size={14} />} onClick={() => start(t.id)}>Start</Button>}
-                          {t.status === 'in_progress' && <Button size="xs" leftSection={<IconBroadcast size={14} />} onClick={() => openLive(t)}>Live</Button>}
-                          {t.status === 'in_progress' && <Button size="xs" variant="default" leftSection={<IconPlayerStop size={14} />} onClick={() => end(t.id)}>End</Button>}
-                          <Button size="xs" variant="default" leftSection={<IconClipboardList size={14} />} onClick={() => viewLogs(t)}>Report</Button>
-                        </Group>
-                      </Table.Td>
-                    </Table.Tr>
-                  );
-                })}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        )}
-      </Paper>
+      {loading ? <Paper withBorder radius="md"><LoadingState /></Paper> : visibleTrips.length === 0 ? <Paper withBorder radius="md"><EmptyState message="No trips found." /></Paper> : (
+        <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }} spacing="md">
+          {visibleTrips.map(t => {
+            const tl = timeliness(t);
+            const studentStats = t.studentStats || {};
+            const totalStudents = studentStats.total || 0;
+            const accountedFor = (studentStats.onBus || 0) + (studentStats.droppedOff || 0) + (studentStats.absent || 0);
+            const progress = totalStudents ? Math.min(100, Math.round((accountedFor / totalStudents) * 100)) : 0;
+            return (
+              <Paper withBorder radius="md" shadow="sm" p="md" key={t.id}>
+                <Group justify="space-between" align="flex-start" wrap="nowrap">
+                  <Group align="flex-start" wrap="nowrap">
+                    <ThemeIcon size={46} radius="xl" color={t.status === 'in_progress' ? 'blue' : 'violet'} variant="light">
+                      <IconRoute size={23} />
+                    </ThemeIcon>
+                    <Box style={{ minWidth: 0 }}>
+                      <Button variant="subtle" size="compact-md" px={0} fw={800} onClick={() => navigate(`/trips/${t.id}`)}>{t.route?.name || 'Unnamed route'}</Button>
+                      <Text size="xs" c="dimmed">{t.scheduledDate} • {t.scheduledTime ? fmtClock(t.scheduledTime) : 'Time not set'}</Text>
+                    </Box>
+                  </Group>
+                  <StatusBadge status={t.status}>{t.status.replace('_', ' ')}</StatusBadge>
+                </Group>
+
+                <Group gap={6} mt="md">
+                  <Badge color={t.type === 'morning_pickup' ? 'yellow' : 'blue'} variant="light">{t.type === 'morning_pickup' ? '🌅 Morning pickup' : '🌇 Afternoon drop-off'}</Badge>
+                  {tl && <StatusBadge status={tl.key}>{tl.icon} {tl.label}</StatusBadge>}
+                </Group>
+
+                <SimpleGrid cols={2} spacing="xs" mt="md">
+                  <Paper bg="blue.0" p="sm">
+                    <Group gap={6} wrap="nowrap"><IconBus size={15} /><Box style={{ minWidth: 0 }}><Text fz={10} c="dimmed">Vehicle</Text><Text size="xs" fw={750} truncate>{t.vehicle?.plateNumber || 'Unassigned'}</Text></Box></Group>
+                  </Paper>
+                  <Paper bg="green.0" p="sm">
+                    <Group gap={6} wrap="nowrap"><IconSteeringWheel size={15} /><Box style={{ minWidth: 0 }}><Text fz={10} c="dimmed">Driver</Text><Text size="xs" fw={750} truncate>{t.driver ? `${t.driver.firstName} ${t.driver.lastName}` : 'Unassigned'}</Text></Box></Group>
+                  </Paper>
+                </SimpleGrid>
+
+                <Box mt="md">
+                  <Group justify="space-between" mb={5}>
+                    <Group gap={5}><IconUsers size={14} /><Text size="xs" fw={650}>Student progress</Text></Group>
+                    <Text size="xs" fw={700}>{progress}%</Text>
+                  </Group>
+                  <Progress value={progress} color={t.status === 'completed' ? 'green' : 'blue'} size="sm" />
+                  <SimpleGrid cols={4} spacing={4} mt="sm">
+                    {[
+                      ['Expected', totalStudents, 'blue'],
+                      ['On bus', studentStats.onBus || 0, 'violet'],
+                      ['Completed', studentStats.droppedOff || 0, 'green'],
+                      ['Absent', studentStats.absent || 0, 'red'],
+                    ].map(([label, value, color]) => (
+                      <Box key={label} ta="center" bg={`${color}.0`} p={6} style={{ borderRadius: 6 }}>
+                        <Text size="sm" fw={800} c={`${color}.7`}>{value}</Text>
+                        <Text fz={9} c="dimmed">{label}</Text>
+                      </Box>
+                    ))}
+                  </SimpleGrid>
+                </Box>
+
+                <Group gap={6} mt="lg" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-gray-2)' }}>
+                  <Button size="xs" variant="light" leftSection={<IconEye size={14} />} onClick={() => navigate(`/trips/${t.id}`)}>Details</Button>
+                  {(t.status === 'scheduled' || t.status === 'delayed') && <Button size="xs" color="green" leftSection={<IconPlayerPlay size={14} />} onClick={() => start(t.id)}>Start</Button>}
+                  {t.status === 'in_progress' && <Button size="xs" leftSection={<IconBroadcast size={14} />} onClick={() => openLive(t)}>Live</Button>}
+                  {t.status === 'in_progress' && <Button size="xs" variant="default" leftSection={<IconPlayerStop size={14} />} onClick={() => end(t.id)}>End</Button>}
+                  <Button size="xs" variant="default" leftSection={<IconClipboardList size={14} />} onClick={() => viewLogs(t)}>Report</Button>
+                </Group>
+              </Paper>
+            );
+          })}
+        </SimpleGrid>
+      )}
 
       <Modal
         isOpen={modalOpen}
