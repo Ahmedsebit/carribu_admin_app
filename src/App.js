@@ -12,6 +12,7 @@ import RoutesPage from './pages/RoutesPage';
 import RouteDetailsPage from './pages/RouteDetailsPage';
 import TripsPage from './pages/TripsPage';
 import TripDetailsPage from './pages/TripDetailsPage';
+import TripHistoryPage from './pages/TripHistoryPage';
 import ParentsPage from './pages/ParentsPage';
 import DriversPage from './pages/DriversPage';
 import DriverDetailsPage from './pages/DriverDetailsPage';
@@ -34,6 +35,7 @@ const AppRoutes = () => {
       <Route path="/routes/:id" element={<ProtectedRoute><AppLayout><RouteDetailsPage/></AppLayout></ProtectedRoute>}/>
       <Route path="/trips" element={<ProtectedRoute><AppLayout><TripsPage/></AppLayout></ProtectedRoute>}/>
       <Route path="/trips/:id" element={<ProtectedRoute><AppLayout><TripDetailsPage/></AppLayout></ProtectedRoute>}/>
+      <Route path="/trip-history" element={<ProtectedRoute><AppLayout><TripHistoryPage/></AppLayout></ProtectedRoute>}/>
       <Route path="/parents" element={<ProtectedRoute><AppLayout><ParentsPage/></AppLayout></ProtectedRoute>}/>
       <Route path="/drivers" element={<ProtectedRoute><AppLayout><DriversPage/></AppLayout></ProtectedRoute>}/>
       <Route path="/drivers/:id" element={<ProtectedRoute><AppLayout><DriverDetailsPage/></AppLayout></ProtectedRoute>}/>

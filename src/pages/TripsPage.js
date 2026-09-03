@@ -1,17 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Group, Button, TextInput, Select, Table, Paper, Alert, Badge, Text, Title, Stack, Box, Grid, Anchor,
+  Group, Button, Checkbox, TextInput, Select, Table, Paper, Alert, Badge, Text, Title, Stack, Box, Grid, Anchor,
   SimpleGrid, Progress, ThemeIcon,
 } from '@mantine/core';
 import {
   IconPlus, IconAlertCircle, IconCircleCheck, IconPlayerPlay, IconPlayerStop, IconBroadcast, IconClipboardList, IconEye,
-  IconRoute, IconBus, IconSteeringWheel, IconUsers,
+  IconRoute, IconBus, IconSteeringWheel, IconUsers, IconHistory,
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { tripAPI, routeAPI, locationAPI } from '../services/api';
 import Modal from '../components/Modal';
 import { classifyTimeliness } from '../utils/tripTimeliness';
 import { PageHeader, StatsGrid, StatCard, StatusBadge, EmptyState, LoadingState } from '../components/ui';
+
+const WEEKDAYS = [
+  { value: 1, label: 'Mon' },
+  { value: 2, label: 'Tue' },
+  { value: 3, label: 'Wed' },
+  { value: 4, label: 'Thu' },
+  { value: 5, label: 'Fri' },
+  { value: 6, label: 'Sat' },
+  { value: 0, label: 'Sun' },
+];
+
+const dateString = date => date.toISOString().split('T')[0];
+
+const newTripForm = () => {
+  const start = new Date();
+  const end = new Date(start);
+  end.setDate(end.getDate() + 30);
+  return {
+    routeId: '',
+    type: 'morning_pickup',
+    scheduledDate: dateString(start),
+    scheduledTime: '',
+    recurrenceMode: 'once',
+    recurrenceEndDate: dateString(end),
+    weekdays: [1, 2, 3, 4, 5],
+  };
+};
 
 const TripsPage = () => {
   const navigate = useNavigate();
@@ -28,7 +55,7 @@ const TripsPage = () => {
   const [busLoc, setBusLoc] = useState(null);
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveError, setLiveError] = useState('');
-  const [form, setForm] = useState({ routeId: '', type: 'morning_pickup', scheduledDate: new Date().toISOString().split('T')[0] });
+  const [form, setForm] = useState(newTripForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -52,9 +79,36 @@ const TripsPage = () => {
 
   const schedule = async () => {
     setError(''); setSaving(true);
-    try { await tripAPI.create(form); setSuccess('Scheduled!'); setModalOpen(false); fetch(); setTimeout(() => setSuccess(''), 3000); }
+    try {
+      const payload = {
+        routeId: form.routeId,
+        type: form.type,
+        scheduledDate: form.scheduledDate,
+        scheduledTime: form.scheduledTime || null,
+      };
+      if (form.recurrenceMode !== 'once') {
+        payload.recurrence = {
+          frequency: form.recurrenceMode,
+          endDate: form.recurrenceEndDate,
+          weekdays: form.recurrenceMode === 'weekly' ? form.weekdays : undefined,
+        };
+      }
+      const { data } = await tripAPI.create(payload);
+      const skipped = data.skippedCount ? ` ${data.skippedCount} existing ${data.skippedCount === 1 ? 'trip was' : 'trips were'} skipped.` : '';
+      setSuccess(`${data.message}${skipped}`);
+      setModalOpen(false);
+      if (dateFilter === form.scheduledDate) fetch();
+      else setDateFilter(form.scheduledDate);
+      setTimeout(() => setSuccess(''), 5000);
+    }
     catch (e) { setError(e.response?.data?.error || 'Failed'); } finally { setSaving(false); }
   };
+  const toggleWeekday = day => setForm(previous => ({
+    ...previous,
+    weekdays: previous.weekdays.includes(day)
+      ? previous.weekdays.filter(value => value !== day)
+      : [...previous.weekdays, day],
+  }));
   const start = async id => {
     setError('');
     try {
@@ -129,7 +183,12 @@ const TripsPage = () => {
       <PageHeader
         title="🚌 Trip Management"
         subtitle="Schedule and track daily trips"
-        actions={<Button leftSection={<IconPlus size={16} />} onClick={() => { setForm({ routeId: '', type: 'morning_pickup', scheduledDate: new Date().toISOString().split('T')[0], scheduledTime: '' }); setError(''); setModalOpen(true); }}>Schedule Trip</Button>}
+        actions={(
+          <>
+            <Button variant="default" leftSection={<IconHistory size={16} />} onClick={() => navigate('/trip-history')}>Trip History</Button>
+            <Button leftSection={<IconPlus size={16} />} onClick={() => { setForm(newTripForm()); setError(''); setModalOpen(true); }}>Schedule Trip</Button>
+          </>
+        )}
       />
       {success && <Alert color="green" icon={<IconCircleCheck size={16} />} mb="md" withCloseButton onClose={() => setSuccess('')}>{success}</Alert>}
       {error && !modalOpen && <Alert color="red" icon={<IconAlertCircle size={16} />} mb="md" withCloseButton onClose={() => setError('')}>{error}</Alert>}
@@ -247,15 +306,80 @@ const TripsPage = () => {
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         title="Schedule Trip"
-        footer={<><Button variant="default" onClick={() => setModalOpen(false)}>Cancel</Button><Button onClick={schedule} loading={saving}>Schedule</Button></>}
+        footer={(
+          <>
+            <Button variant="default" onClick={() => setModalOpen(false)}>Cancel</Button>
+            <Button
+              onClick={schedule}
+              loading={saving}
+              disabled={
+                !form.routeId ||
+                !form.scheduledDate ||
+                (form.recurrenceMode !== 'once' && (!form.scheduledTime || !form.recurrenceEndDate)) ||
+                (form.recurrenceMode === 'weekly' && form.weekdays.length === 0)
+              }
+            >
+              {form.recurrenceMode === 'once' ? 'Schedule trip' : 'Schedule recurring trips'}
+            </Button>
+          </>
+        )}
       >
         {error && <Alert color="red" icon={<IconAlertCircle size={16} />}>{error}</Alert>}
         <Select label="Route *" placeholder="-- Select --" data={routes.map(r => ({ value: String(r.id), label: `${r.name} (${r.students?.length || 0} students)` }))} value={form.routeId} onChange={v => setForm(p => ({ ...p, routeId: v || '' }))} searchable />
         <Group grow>
           <Select label="Type *" data={[{ value: 'morning_pickup', label: '🌅 Morning' }, { value: 'afternoon_dropoff', label: '🌇 Afternoon' }]} value={form.type} onChange={v => setForm(p => ({ ...p, type: v }))} />
-          <TextInput type="date" label="Date *" value={form.scheduledDate} onChange={e => setForm(p => ({ ...p, scheduledDate: e.target.value }))} />
-          <TextInput type="time" label="Time" value={form.scheduledTime} onChange={e => setForm(p => ({ ...p, scheduledTime: e.target.value }))} />
+          <TextInput
+            type="date"
+            label={form.recurrenceMode === 'once' ? 'Date *' : 'Start date *'}
+            value={form.scheduledDate}
+            onChange={e => setForm(p => ({
+              ...p,
+              scheduledDate: e.target.value,
+              recurrenceEndDate: p.recurrenceEndDate < e.target.value ? e.target.value : p.recurrenceEndDate,
+            }))}
+          />
+          <TextInput type="time" label={form.recurrenceMode === 'once' ? 'Time' : 'Time *'} value={form.scheduledTime} onChange={e => setForm(p => ({ ...p, scheduledTime: e.target.value }))} />
         </Group>
+        <Select
+          label="Repeats"
+          value={form.recurrenceMode}
+          onChange={value => setForm(p => ({ ...p, recurrenceMode: value || 'once' }))}
+          data={[
+            { value: 'once', label: 'Does not repeat' },
+            { value: 'daily', label: 'Every day' },
+            { value: 'weekdays', label: 'Every weekday (Monday-Friday)' },
+            { value: 'weekly', label: 'Selected days each week' },
+          ]}
+        />
+        {form.recurrenceMode !== 'once' && (
+          <TextInput
+            type="date"
+            label="Repeat until *"
+            min={form.scheduledDate}
+            value={form.recurrenceEndDate}
+            onChange={e => setForm(p => ({ ...p, recurrenceEndDate: e.target.value }))}
+          />
+        )}
+        {form.recurrenceMode === 'weekly' && (
+          <Box>
+            <Text size="sm" fw={500} mb={6}>Days of the week *</Text>
+            <Group gap="xs">
+              {WEEKDAYS.map(day => (
+                <Checkbox
+                  key={day.value}
+                  label={day.label}
+                  checked={form.weekdays.includes(day.value)}
+                  onChange={() => toggleWeekday(day.value)}
+                />
+              ))}
+            </Group>
+          </Box>
+        )}
+        {form.recurrenceMode !== 'once' && (
+          <Alert color="blue" variant="light">
+            Separate trips will be created from {form.scheduledDate || 'the start date'} through {form.recurrenceEndDate || 'the end date'}. Existing trips at the same route, type, date, and time will be skipped.
+          </Alert>
+        )}
       </Modal>
 
       <Modal isOpen={logModalOpen} onClose={() => setLogModalOpen(false)} wide title={`📋 Trip Report — ${selectedTrip?.route?.name || ''}`}>
