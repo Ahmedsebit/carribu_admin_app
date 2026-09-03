@@ -3,7 +3,7 @@ import { NavLink as RouterNavLink, useLocation } from 'react-router-dom';
 import { AppShell, Burger, Group, NavLink, Text, Stack, Avatar, Button, Divider, ScrollArea, Box, Image } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
-  IconLayoutDashboard, IconBus, IconSteeringWheel, IconBackpack, IconUsers, IconRoute, IconBusStop, IconLogout,
+  IconLayoutDashboard, IconBus, IconSteeringWheel, IconBackpack, IconUsers, IconRoute, IconBusStop, IconHistory, IconLogout,
 } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { to: '/parents', label: 'Parents', icon: IconUsers },
   { to: '/routes', label: 'Routes', icon: IconRoute },
   { to: '/trips', label: 'Trips', icon: IconBusStop },
+  { to: '/trip-history', label: 'Trip History', icon: IconHistory },
 ];
 
 // Shared responsive shell: header + collapsible navbar (drawer on mobile).
