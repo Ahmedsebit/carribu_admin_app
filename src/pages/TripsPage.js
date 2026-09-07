@@ -5,7 +5,7 @@ import {
 } from '@mantine/core';
 import {
   IconPlus, IconAlertCircle, IconCircleCheck, IconPlayerPlay, IconPlayerStop, IconBroadcast, IconClipboardList, IconEye,
-  IconRoute, IconBus, IconSteeringWheel, IconUsers, IconHistory,
+  IconRoute, IconBus, IconSteeringWheel, IconUsers, IconHistory, IconTrash,
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { tripAPI, routeAPI, locationAPI } from '../services/api';
@@ -121,6 +121,15 @@ const TripsPage = () => {
     }
   };
   const end = async id => { try { await tripAPI.end(id); setSuccess('Completed!'); fetch(); setTimeout(() => setSuccess(''), 3000); } catch (e) { /* surfaced via reload */ } };
+  const del = async id => {
+    if (!window.confirm('Permanently delete this trip? This cannot be undone.')) return;
+    try {
+      await tripAPI.delete(id);
+      setSuccess('Trip deleted.');
+      fetch();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (e) { setError(e.response?.data?.error || 'Failed to delete trip'); }
+  };
   const viewLogs = async trip => { setSelectedTrip(trip); try { const { data } = await tripAPI.getLogs(trip.id); setTripLogs(data.logs); setLogModalOpen(true); } catch (e) { /* surfaced via reload */ } };
   const fetchLive = async trip => {
     const id = trip.id;
@@ -295,6 +304,7 @@ const TripsPage = () => {
                   {t.status === 'in_progress' && <Button size="xs" leftSection={<IconBroadcast size={14} />} onClick={() => openLive(t)}>Live</Button>}
                   {t.status === 'in_progress' && <Button size="xs" variant="default" leftSection={<IconPlayerStop size={14} />} onClick={() => end(t.id)}>End</Button>}
                   <Button size="xs" variant="default" leftSection={<IconClipboardList size={14} />} onClick={() => viewLogs(t)}>Report</Button>
+                  {t.status !== 'in_progress' && <Button size="xs" color="red" variant="light" leftSection={<IconTrash size={14} />} onClick={() => del(t.id)}>Delete</Button>}
                 </Group>
               </Paper>
             );
