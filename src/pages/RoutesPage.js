@@ -5,7 +5,7 @@ import {
 } from '@mantine/core';
 import {
   IconPlus, IconEdit, IconAlertCircle, IconCircleCheck, IconX, IconTarget,
-  IconRoute, IconBus, IconSteeringWheel, IconUsers, IconClock,
+  IconRoute, IconBus, IconSteeringWheel, IconUsers, IconClock, IconTrash,
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { routeAPI, vehicleAPI, studentAPI, driverAPI } from '../services/api';
@@ -266,6 +266,15 @@ const RoutesPage = () => {
       setModalOpen(false); fetch(); setTimeout(() => setSuccess(''), 3000);
     } catch (e) { setError(e.response?.data?.error || 'Failed'); } finally { setSaving(false); }
   };
+  const deleteRoute = async id => {
+    if (!window.confirm('Deactivate this route? It will no longer be assignable to new trips.')) return;
+    try {
+      await routeAPI.delete(id);
+      setSuccess('Route deactivated.');
+      fetch();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (e) { setError(e.response?.data?.error || 'Failed to delete route'); }
+  };
   const suggestStudents = async (grades, waypoints) => {
     if (!grades || !waypoints) return;
     if (grades.length === 0 && waypoints.length === 0) return;
@@ -342,7 +351,10 @@ const RoutesPage = () => {
                     </Group>
                   </Box>
                 </Group>
-                <Tooltip label="Edit route"><ActionIcon variant="light" onClick={() => openEdit(r)}><IconEdit size={16} /></ActionIcon></Tooltip>
+                <Group gap={4} wrap="nowrap">
+                  <Tooltip label="Edit route"><ActionIcon variant="light" onClick={() => openEdit(r)}><IconEdit size={16} /></ActionIcon></Tooltip>
+                  <Tooltip label="Delete route"><ActionIcon variant="light" color="red" onClick={() => deleteRoute(r.id)}><IconTrash size={16} /></ActionIcon></Tooltip>
+                </Group>
               </Group>
 
               <SimpleGrid cols={2} spacing="xs" mt="lg">
