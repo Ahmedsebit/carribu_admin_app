@@ -437,6 +437,9 @@ const RoutesPage = () => {
               {suggested && <Button size="xs" variant="default" onClick={addSuggestedStudents}>✅ Add All ({suggested.length})</Button>}
             </Group>
           </Group>
+          <Alert color="green" variant="light" mb={8}>
+            Pickup order is saved closest-to-furthest from the first outbound waypoint. Afternoon drop-offs use the reverse order.
+          </Alert>
           {suggested && (
             <Alert color="blue" variant="light" mb={8}>
               <Text size="sm" fw={600} mb={4}>💡 {suggested.length} students auto-matched within 3km of route with matching grades:</Text>

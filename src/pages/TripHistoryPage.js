@@ -8,7 +8,7 @@ import {
   IconHistory, IconRoute, IconSteeringWheel, IconUsers,
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
-import { tripAPI } from '../services/api';
+import { studentAPI, tripAPI } from '../services/api';
 import { EmptyState, LoadingState, StatusBadge } from '../components/ui';
 
 const HISTORICAL_STATUSES = ['completed', 'missed', 'cancelled'];
@@ -30,6 +30,8 @@ const TripHistoryPage = () => {
   const navigate = useNavigate();
   const [period, setPeriod] = useState('30');
   const [status, setStatus] = useState('all');
+  const [studentId, setStudentId] = useState('all');
+  const [students, setStudents] = useState([]);
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -45,6 +47,7 @@ const TripHistoryPage = () => {
         start.setDate(start.getDate() - (Number(period) - 1));
         params.startDate = start.toISOString().split('T')[0];
       }
+      if (studentId !== 'all') params.studentId = studentId;
       const { data } = await tripAPI.getAll(params);
       setTrips((data.trips || []).filter(trip => HISTORICAL_STATUSES.includes(trip.status)));
     } catch (err) {
@@ -52,9 +55,14 @@ const TripHistoryPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, studentId]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    studentAPI.getAll()
+      .then(({ data }) => setStudents(data.students || []))
+      .catch(() => setStudents([]));
+  }, []);
 
   const visibleTrips = useMemo(
     () => status === 'all' ? trips : trips.filter(trip => trip.status === status),
@@ -151,6 +159,19 @@ const TripHistoryPage = () => {
               { value: 'completed', label: 'Completed' },
               { value: 'missed', label: 'Missed' },
               { value: 'cancelled', label: 'Cancelled' },
+            ]}
+          />
+          <Select
+            w={240}
+            searchable
+            value={studentId}
+            onChange={value => setStudentId(value || 'all')}
+            data={[
+              { value: 'all', label: 'All students' },
+              ...students.map(student => ({
+                value: String(student.id),
+                label: `${student.firstName} ${student.lastName} (${student.admissionNumber})`,
+              })),
             ]}
           />
         </Group>

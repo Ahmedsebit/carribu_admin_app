@@ -67,11 +67,11 @@ const DriversPage = () => {
   };
 
   const deleteDriver = async id => {
-    if (!window.confirm('Permanently delete this driver? They will be removed from assigned routes and trips.')) return;
+    if (!window.confirm('Deactivate this driver? They will be removed from assigned routes and upcoming trips, while historical messages and trips are preserved.')) return;
     setError('');
     try {
       await driverAPI.delete(id);
-      setSuccess('Driver deleted.');
+      setSuccess('Driver deactivated.');
       fetchDrivers();
       setTimeout(() => setSuccess(''), 3000);
     } catch (e) {
