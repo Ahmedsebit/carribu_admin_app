@@ -5,7 +5,7 @@ import {
 } from '@mantine/core';
 import {
   IconPlus, IconSearch, IconEdit, IconTrash, IconEye, IconAlertCircle, IconCircleCheck, IconUpload,
-  IconUsers, IconPhone, IconMail, IconMapPin,
+  IconUsers, IconPhone, IconMail, IconMapPin, IconRestore,
 } from '@tabler/icons-react';
 import { parentAPI, studentAPI, importAPI } from '../services/api';
 import Modal from '../components/Modal';
@@ -124,6 +124,18 @@ const ParentsPage = () => {
     try { await parentAPI.delete(id); setSuccess('Parent access to this school deactivated.'); fetchParents(); setTimeout(() => setSuccess(''), 3000); } catch (e) { console.error(e); }
   };
 
+  const reactivate = async id => {
+    if (!window.confirm('Restore this parent’s access to this school?')) return;
+    try {
+      await parentAPI.reactivate(id);
+      setSuccess('Parent access to this school reactivated.');
+      fetchParents();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (e) {
+      setError(e.response?.data?.error || 'Failed to reactivate parent');
+    }
+  };
+
   const assignStudent = async () => {
     if (!assignStudentId || !selectedParent) return;
     try {
@@ -226,10 +238,11 @@ const ParentsPage = () => {
 
       {success && <Alert color="green" icon={<IconCircleCheck size={16} />} mb="md" withCloseButton onClose={() => setSuccess('')}>{success}</Alert>}
 
-      <StatsGrid cols={3}>
+      <StatsGrid cols={4}>
         <StatCard icon="👪" value={parents.length} label="Total Parents" color="blue" />
-        <StatCard icon="✅" value={parents.filter(p => p.children && p.children.length > 0).length} label="With Children" color="green" />
-        <StatCard icon="⚠️" value={parents.filter(p => !p.children || p.children.length === 0).length} label="No Children Linked" color="yellow" />
+        <StatCard icon="✅" value={parents.filter(p => p.schoolAccessActive).length} label="Active Access" color="green" />
+        <StatCard icon="⏸️" value={parents.filter(p => !p.schoolAccessActive).length} label="Inactive Access" color="red" />
+        <StatCard icon="🎒" value={parents.filter(p => p.children && p.children.length > 0).length} label="With Children" color="violet" />
       </StatsGrid>
 
       <Group mb="md">
@@ -239,6 +252,7 @@ const ParentsPage = () => {
       {loading ? <Paper withBorder radius="md"><LoadingState /></Paper> : filtered.length === 0 ? <Paper withBorder radius="md"><EmptyState message="No parents found." /></Paper> : (
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
           {filtered.map(p => {
+            const accessActive = p.schoolAccessActive;
             const children = [...(p.children || [])].sort((a, b) =>
               a.firstName.localeCompare(b.firstName, undefined, { sensitivity: 'base' }) ||
               a.lastName.localeCompare(b.lastName, undefined, { sensitivity: 'base' })
@@ -253,7 +267,7 @@ const ParentsPage = () => {
                       <Text size="xs" c="dimmed">{children.length} {children.length === 1 ? 'child' : 'children'} linked</Text>
                     </Box>
                   </Group>
-                  <Badge color={children.length ? 'green' : 'orange'} variant="light">{children.length ? 'Linked' : 'No children'}</Badge>
+                  <Badge color={accessActive ? 'green' : 'red'} variant="light">{accessActive ? 'Active' : 'Inactive'}</Badge>
                 </Group>
 
                 <Stack gap="sm" mt="lg">
@@ -274,10 +288,14 @@ const ParentsPage = () => {
 
                 <Group justify="space-between" mt="lg" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-gray-2)' }}>
                   <Group gap={6}>
-                    <Button size="xs" variant="light" leftSection={<IconEye size={14} />} onClick={() => openDetail(p)}>Manage</Button>
-                    <Tooltip label="Edit parent"><ActionIcon variant="light" onClick={() => openEdit(p)}><IconEdit size={16} /></ActionIcon></Tooltip>
+                    <Button size="xs" variant="light" leftSection={<IconEye size={14} />} onClick={() => openDetail(p)} disabled={!accessActive}>Manage</Button>
+                    <Tooltip label={accessActive ? 'Edit parent' : 'Reactivate access before editing'}><ActionIcon variant="light" onClick={() => openEdit(p)} disabled={!accessActive}><IconEdit size={16} /></ActionIcon></Tooltip>
                   </Group>
-                  <Tooltip label="Remove from school"><ActionIcon variant="light" color="red" onClick={() => deactivate(p.id)}><IconTrash size={16} /></ActionIcon></Tooltip>
+                  {accessActive ? (
+                    <Tooltip label="Remove from school"><ActionIcon variant="light" color="red" onClick={() => deactivate(p.id)}><IconTrash size={16} /></ActionIcon></Tooltip>
+                  ) : (
+                    <Tooltip label="Reactivate school access"><ActionIcon variant="light" color="green" onClick={() => reactivate(p.id)}><IconRestore size={16} /></ActionIcon></Tooltip>
+                  )}
                 </Group>
               </Paper>
             );
