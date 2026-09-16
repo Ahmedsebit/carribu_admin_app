@@ -120,8 +120,8 @@ const ParentsPage = () => {
   };
 
   const deactivate = async id => {
-    if (!window.confirm('Deactivate this parent?')) return;
-    try { await parentAPI.delete(id); setSuccess('Parent deactivated.'); fetchParents(); setTimeout(() => setSuccess(''), 3000); } catch (e) { console.error(e); }
+    if (!window.confirm('Remove this parent’s access to this school? Their app account and access to other schools will remain active.')) return;
+    try { await parentAPI.delete(id); setSuccess('Parent access to this school deactivated.'); fetchParents(); setTimeout(() => setSuccess(''), 3000); } catch (e) { console.error(e); }
   };
 
   const assignStudent = async () => {
