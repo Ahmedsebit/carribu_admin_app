@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Group, Button, TextInput, Select, Paper, Alert, Badge, ActionIcon, Tooltip, SimpleGrid, Box, Text, ThemeIcon, Stack } from '@mantine/core';
 import { IconPlus, IconSearch, IconEdit, IconTrash, IconAlertCircle, IconCircleCheck, IconSchool, IconUsers, IconMapPin, IconRoute } from '@tabler/icons-react';
-import { studentAPI } from '../services/api';
+import { parentAPI, studentAPI } from '../services/api';
 import Modal from '../components/Modal';
 import { PageHeader, StatsGrid, StatCard, EmptyState, LoadingState } from '../components/ui';
 
-const empty = { admissionNumber: '', firstName: '', lastName: '', grade: '' };
+const empty = { admissionNumber: '', firstName: '', lastName: '', grade: '', parentId: '' };
 
 const StudentsPage = () => {
   const [students, setStudents] = useState([]);
+  const [parents, setParents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [gradeFilter, setGradeFilter] = useState('');
@@ -31,15 +32,34 @@ const StudentsPage = () => {
   }, [search, gradeFilter]);
 
   useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => {
+    parentAPI.getAll()
+      .then(({ data }) => setParents(
+        (data.parents || []).filter(parent => parent.schoolAccessActive)
+      ))
+      .catch(() => setParents([]));
+  }, []);
 
   const openAdd = () => { setEditing(null); setForm(empty); setError(''); setModalOpen(true); };
-  const openEdit = s => { setEditing(s); setForm({ admissionNumber: s.admissionNumber || '', firstName: s.firstName, lastName: s.lastName, grade: s.grade || '' }); setError(''); setModalOpen(true); };
+  const openEdit = s => {
+    setEditing(s);
+    setForm({
+      admissionNumber: s.admissionNumber || '',
+      firstName: s.firstName,
+      lastName: s.lastName,
+      grade: s.grade || '',
+      parentId: s.parentId ? String(s.parentId) : '',
+    });
+    setError('');
+    setModalOpen(true);
+  };
 
   const save = async () => {
     setError(''); setSaving(true);
     try {
-      if (editing) { await studentAPI.update(editing.id, form); setSuccess('Updated!'); }
-      else { await studentAPI.create(form); setSuccess('Added!'); }
+      const payload = { ...form, parentId: form.parentId ? Number(form.parentId) : null };
+      if (editing) { await studentAPI.update(editing.id, payload); setSuccess('Updated!'); }
+      else { await studentAPI.create(payload); setSuccess('Added!'); }
       setModalOpen(false); fetch(); setTimeout(() => setSuccess(''), 3000);
     } catch (e) { setError(e.response?.data?.error || 'Failed'); } finally { setSaving(false); }
   };
@@ -144,6 +164,19 @@ const StudentsPage = () => {
           <TextInput label="Last Name *" value={form.lastName} onChange={e => ch('lastName', e.target.value)} />
         </Group>
         <TextInput label="Grade" placeholder="Grade 3" value={form.grade} onChange={e => ch('grade', e.target.value)} />
+        <Select
+          label="Parent"
+          placeholder="Select a parent to link"
+          data={parents.map(parent => ({
+            value: String(parent.id),
+            label: `${parent.firstName} ${parent.lastName} (${parent.phone || parent.email})`,
+          }))}
+          value={form.parentId || null}
+          onChange={value => ch('parentId', value || '')}
+          searchable
+          clearable
+          nothingFoundMessage="No active parents found"
+        />
       </Modal>
     </div>
   );
