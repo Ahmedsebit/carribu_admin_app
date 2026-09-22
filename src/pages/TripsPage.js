@@ -356,8 +356,7 @@ const TripsPage = () => {
           onChange={value => setForm(p => ({ ...p, recurrenceMode: value || 'once' }))}
           data={[
             { value: 'once', label: 'Does not repeat' },
-            { value: 'daily', label: 'Every day' },
-            { value: 'weekdays', label: 'Every weekday (Monday-Friday)' },
+            { value: 'daily', label: 'Every school day (Monday-Friday)' },
             { value: 'weekly', label: 'Selected days each week' },
           ]}
         />
@@ -387,7 +386,7 @@ const TripsPage = () => {
         )}
         {form.recurrenceMode !== 'once' && (
           <Alert color="blue" variant="light">
-            Separate trips will be created from {form.scheduledDate || 'the start date'} through {form.recurrenceEndDate || 'the end date'}. Existing trips at the same route, type, date, and time will be skipped.
+            Separate trips will be created from {form.scheduledDate || 'the start date'} through {form.recurrenceEndDate || 'the end date'}. School-day schedules exclude Saturdays and Sundays. Existing trips at the same route, type, date, and time will be skipped.
           </Alert>
         )}
       </Modal>
