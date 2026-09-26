@@ -136,6 +136,24 @@ const ParentsPage = () => {
     }
   };
 
+  const reviewPickupLocation = async (parent, approve) => {
+    if (!approve && !window.confirm(`Reject ${parent.firstName} ${parent.lastName}'s pickup location change?`)) return;
+    setError('');
+    try {
+      const action = approve ? parentAPI.approvePickupLocation : parentAPI.rejectPickupLocation;
+      await action(parent.id);
+      setSuccess(approve ? 'Pickup location approved.' : 'Pickup location change rejected.');
+      await fetchParents();
+      if (selectedParent?.id === parent.id) {
+        const { data } = await parentAPI.getById(parent.id);
+        setSelectedParent(data.parent);
+      }
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (e) {
+      setError(e.response?.data?.error || 'Failed to review pickup location');
+    }
+  };
+
   const assignStudent = async () => {
     if (!assignStudentId || !selectedParent) return;
     try {
@@ -237,6 +255,7 @@ const ParentsPage = () => {
       />
 
       {success && <Alert color="green" icon={<IconCircleCheck size={16} />} mb="md" withCloseButton onClose={() => setSuccess('')}>{success}</Alert>}
+      {error && !modalOpen && <Alert color="red" icon={<IconAlertCircle size={16} />} mb="md" withCloseButton onClose={() => setError('')}>{error}</Alert>}
 
       <StatsGrid cols={4}>
         <StatCard icon="👪" value={parents.length} label="Total Parents" color="blue" />
@@ -274,6 +293,20 @@ const ParentsPage = () => {
                   <Group gap={8} wrap="nowrap"><ThemeIcon size="sm" color="gray" variant="light"><IconMail size={13} /></ThemeIcon><Text size="sm" truncate>{p.email}</Text></Group>
                   <Group gap={8} wrap="nowrap"><ThemeIcon size="sm" color="green" variant="light"><IconPhone size={13} /></ThemeIcon><Text size="sm">{p.phone || 'No phone number'}</Text></Group>
                   <Group gap={8} wrap="nowrap" align="flex-start"><ThemeIcon size="sm" color="red" variant="light"><IconMapPin size={13} /></ThemeIcon><Text size="sm" lineClamp={2}>{p.pickupAddress || 'No pickup address recorded'}</Text></Group>
+                  {p.pendingPickupRequestedAt && (
+                    <Paper withBorder p="sm" radius="sm" bg="yellow.0">
+                      <Group justify="space-between" mb={6}>
+                        <Badge color="yellow" variant="filled">Location approval pending</Badge>
+                        <Text size="xs" c="dimmed">{new Date(p.pendingPickupRequestedAt).toLocaleDateString()}</Text>
+                      </Group>
+                      <Text size="sm" fw={600}>{p.pendingPickupAddress}</Text>
+                      <Text size="xs" c="dimmed">{p.pendingPickupLat}, {p.pendingPickupLng}</Text>
+                      <Group gap="xs" mt="sm">
+                        <Button size="xs" color="green" onClick={() => reviewPickupLocation(p, true)}>Approve</Button>
+                        <Button size="xs" color="red" variant="light" onClick={() => reviewPickupLocation(p, false)}>Reject</Button>
+                      </Group>
+                    </Paper>
+                  )}
                 </Stack>
 
                 <Box mt="md" mih={66}>
@@ -340,6 +373,17 @@ const ParentsPage = () => {
             <Box>
               <Text size="sm" c="dimmed"><strong>Email:</strong> {selectedParent.email} | <strong>Phone:</strong> {selectedParent.phone || '-'}</Text>
               <Text size="sm" c="dimmed"><strong>Pickup:</strong> {selectedParent.pickupAddress || 'Not set'}</Text>
+              {selectedParent.pendingPickupRequestedAt && (
+                <Paper withBorder p="sm" mt="sm" radius="sm" bg="yellow.0">
+                  <Badge color="yellow" mb={6}>Pending pickup location</Badge>
+                  <Text size="sm"><strong>{selectedParent.pendingPickupAddress}</strong></Text>
+                  <Text size="xs" c="dimmed">{selectedParent.pendingPickupLat}, {selectedParent.pendingPickupLng}</Text>
+                  <Group gap="xs" mt="sm">
+                    <Button size="xs" color="green" onClick={() => reviewPickupLocation(selectedParent, true)}>Approve</Button>
+                    <Button size="xs" color="red" variant="light" onClick={() => reviewPickupLocation(selectedParent, false)}>Reject</Button>
+                  </Group>
+                </Paper>
+              )}
             </Box>
 
             <Box>
