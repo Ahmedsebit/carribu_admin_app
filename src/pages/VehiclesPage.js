@@ -8,7 +8,18 @@ import { vehicleAPI } from '../services/api';
 import Modal from '../components/Modal';
 import { PageHeader, StatsGrid, StatCard, StatusBadge, EmptyState, LoadingState } from '../components/ui';
 
-const empty = { plateNumber: '', make: '', model: '', year: '', capacity: 30, color: '', status: 'active', insuranceExpiry: '', lastServiceDate: '' };
+const empty = {
+  plateNumber: '',
+  trackerUniqueId: '',
+  make: '',
+  model: '',
+  year: '',
+  capacity: 30,
+  color: '',
+  status: 'active',
+  insuranceExpiry: '',
+  lastServiceDate: '',
+};
 
 const VehiclesPage = () => {
   const navigate = useNavigate();
@@ -39,7 +50,23 @@ const VehiclesPage = () => {
   useEffect(() => { fetch(); }, [fetch]);
 
   const openAdd = () => { setEditing(null); setForm(empty); setError(''); setModalOpen(true); };
-  const openEdit = v => { setEditing(v); setForm({ plateNumber: v.plateNumber, make: v.make || '', model: v.model || '', year: v.year || '', capacity: v.capacity, color: v.color || '', status: v.status, insuranceExpiry: v.insuranceExpiry || '', lastServiceDate: v.lastServiceDate || '' }); setError(''); setModalOpen(true); };
+  const openEdit = v => {
+    setEditing(v);
+    setForm({
+      plateNumber: v.plateNumber,
+      trackerUniqueId: v.trackerUniqueId || '',
+      make: v.make || '',
+      model: v.model || '',
+      year: v.year || '',
+      capacity: v.capacity,
+      color: v.color || '',
+      status: v.status,
+      insuranceExpiry: v.insuranceExpiry || '',
+      lastServiceDate: v.lastServiceDate || '',
+    });
+    setError('');
+    setModalOpen(true);
+  };
 
   const save = async () => {
     setError(''); setSaving(true);
@@ -135,6 +162,12 @@ const VehiclesPage = () => {
                   <Text size="xs" c="dimmed">Last service</Text>
                   <Text size="sm" fw={650}>{v.lastServiceDate || 'Not recorded'}</Text>
                 </Group>
+                <Group justify="space-between">
+                  <Text size="xs" c="dimmed">GPS tracker</Text>
+                  <Badge size="sm" variant="light" color={v.trackerUniqueId ? 'green' : 'gray'}>
+                    {v.trackerUniqueId ? 'Linked' : 'Not linked'}
+                  </Badge>
+                </Group>
               </Stack>
 
               <Group justify="space-between" mt="lg" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-gray-2)' }}>
@@ -160,6 +193,15 @@ const VehiclesPage = () => {
           <TextInput label="Plate Number *" placeholder="KDA 001A" value={form.plateNumber} onChange={e => ch('plateNumber', e.target.value)} />
           <NumberInput label="Capacity *" value={form.capacity} onChange={v => ch('capacity', v)} min={1} />
         </Group>
+        <TextInput
+          label="Tracker IMEI"
+          description="Use the same device identifier registered in Traccar."
+          placeholder="869706064431432"
+          inputMode="numeric"
+          maxLength={128}
+          value={form.trackerUniqueId}
+          onChange={e => ch('trackerUniqueId', e.target.value)}
+        />
         <Group grow>
           <TextInput label="Make" placeholder="Toyota" value={form.make} onChange={e => ch('make', e.target.value)} />
           <TextInput label="Model" placeholder="HiAce" value={form.model} onChange={e => ch('model', e.target.value)} />
