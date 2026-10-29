@@ -10,7 +10,6 @@ import { PageHeader, StatsGrid, StatCard, StatusBadge, EmptyState, LoadingState 
 
 const empty = {
   plateNumber: '',
-  trackerUniqueId: '',
   make: '',
   model: '',
   year: '',
@@ -54,7 +53,6 @@ const VehiclesPage = () => {
     setEditing(v);
     setForm({
       plateNumber: v.plateNumber,
-      trackerUniqueId: v.trackerUniqueId || '',
       make: v.make || '',
       model: v.model || '',
       year: v.year || '',
@@ -164,10 +162,14 @@ const VehiclesPage = () => {
                 </Group>
                 <Group justify="space-between">
                   <Text size="xs" c="dimmed">GPS tracker</Text>
-                  <Badge size="sm" variant="light" color={v.trackerUniqueId ? 'green' : 'gray'}>
-                    {v.trackerUniqueId ? 'Linked' : 'Not linked'}
-                  </Badge>
+                  <Box ta="right">
+                    <Badge size="sm" variant="light" color={v.trackerUniqueId ? 'green' : 'gray'}>
+                      {v.trackerUniqueId ? 'Linked' : 'Not linked'}
+                    </Badge>
+                    {v.trackerUniqueId && <Text size="xs" mt={4}>{v.trackerUniqueId}</Text>}
+                  </Box>
                 </Group>
+                <Text size="xs" c="dimmed">Tracker links are managed by the super admin.</Text>
               </Stack>
 
               <Group justify="space-between" mt="lg" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-gray-2)' }}>
@@ -193,15 +195,6 @@ const VehiclesPage = () => {
           <TextInput label="Plate Number *" placeholder="KDA 001A" value={form.plateNumber} onChange={e => ch('plateNumber', e.target.value)} />
           <NumberInput label="Capacity *" value={form.capacity} onChange={v => ch('capacity', v)} min={1} />
         </Group>
-        <TextInput
-          label="Tracker IMEI"
-          description="Use the same device identifier registered in Traccar."
-          placeholder="869706064431432"
-          inputMode="numeric"
-          maxLength={128}
-          value={form.trackerUniqueId}
-          onChange={e => ch('trackerUniqueId', e.target.value)}
-        />
         <Group grow>
           <TextInput label="Make" placeholder="Toyota" value={form.make} onChange={e => ch('make', e.target.value)} />
           <TextInput label="Model" placeholder="HiAce" value={form.model} onChange={e => ch('model', e.target.value)} />

@@ -65,6 +65,7 @@ const VehicleDetailsPage = () => {
             </Group>
             <Text size="sm" c="dimmed">{vehicle.make || 'Unknown make'} {vehicle.model || ''} • {vehicle.capacity} seats • {vehicle.year || 'Year not recorded'}</Text>
             <Text size="xs" c="dimmed" mt={4}>Tracker IMEI: {vehicle.trackerUniqueId || 'Not linked'}</Text>
+            <Text size="xs" c="dimmed">Tracker links are managed by the super admin.</Text>
           </Box>
         </Group>
         <Select
