@@ -69,6 +69,9 @@ trip. Linked vehicles wait for Traccar, not driver-phone sharing. When a trip
 ends, the modal stops displaying its location and cannot switch to another
 trip on the same vehicle. Location and student-log request errors are shown
 separately. Closing the modal cancels pending requests and polling.
+Active trip details render this same location card rather than the historical
+GPS panel. The trip-details API also includes the shared last-known fallback;
+completed trips continue to show only their original recorded locations.
 
 The map reads the backend's ingested positions; it does not call Traccar
 directly or expose its credentials. The backend polls Traccar every 60 seconds
