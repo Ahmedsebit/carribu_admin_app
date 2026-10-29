@@ -10,6 +10,7 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 import { vehicleAPI } from '../services/api';
 import { EmptyState, LoadingState, StatusBadge } from '../components/ui';
+import VehicleLocationCard from '../components/VehicleLocationCard';
 
 const formatMinutes = minutes => {
   if (minutes == null) return '—';
@@ -82,6 +83,8 @@ const VehicleDetailsPage = () => {
       </Group>
 
       {error && <Alert color="red" icon={<IconAlertCircle size={16} />}>{error}</Alert>}
+
+      <VehicleLocationCard vehicleId={id} />
 
       <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }}>
         {[
