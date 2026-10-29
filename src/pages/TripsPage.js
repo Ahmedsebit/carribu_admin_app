@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Group, Button, Checkbox, TextInput, Select, Table, Paper, Alert, Badge, Text, Title, Stack, Box, Grid, Anchor,
+  Group, Button, Checkbox, TextInput, Select, Table, Paper, Alert, Badge, Text, Title, Stack, Box, Grid,
   SimpleGrid, Progress, ThemeIcon,
 } from '@mantine/core';
 import {
@@ -8,8 +8,9 @@ import {
   IconRoute, IconBus, IconSteeringWheel, IconUsers, IconHistory, IconTrash,
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
-import { tripAPI, routeAPI, locationAPI } from '../services/api';
+import { tripAPI, routeAPI } from '../services/api';
 import Modal from '../components/Modal';
+import VehicleLocationCard from '../components/VehicleLocationCard';
 import { classifyTimeliness } from '../utils/tripTimeliness';
 import { PageHeader, StatsGrid, StatCard, StatusBadge, EmptyState, LoadingState } from '../components/ui';
 
@@ -52,8 +53,6 @@ const TripsPage = () => {
   const [liveModalOpen, setLiveModalOpen] = useState(false);
   const [liveTrip, setLiveTrip] = useState(null);
   const [liveLogs, setLiveLogs] = useState([]);
-  const [busLoc, setBusLoc] = useState(null);
-  const [liveLoading, setLiveLoading] = useState(false);
   const [liveError, setLiveError] = useState('');
   const [form, setForm] = useState(newTripForm);
   const [saving, setSaving] = useState(false);
@@ -131,22 +130,37 @@ const TripsPage = () => {
     } catch (e) { setError(e.response?.data?.error || 'Failed to delete trip'); }
   };
   const viewLogs = async trip => { setSelectedTrip(trip); try { const { data } = await tripAPI.getLogs(trip.id); setTripLogs(data.logs); setLogModalOpen(true); } catch (e) { /* surfaced via reload */ } };
-  const fetchLive = async trip => {
-    const id = trip.id;
-    const results = await Promise.allSettled([tripAPI.getLogs(id), locationAPI.getBusLocation(id)]);
-    if (results[0].status === 'fulfilled') setLiveLogs(results[0].value.data.logs || []);
-    setBusLoc(results[1].status === 'fulfilled' ? results[1].value.data.location : null);
+  const openLive = trip => {
+    setLiveTrip(trip); setLiveLogs([]); setLiveError(''); setLiveModalOpen(true);
   };
-  const openLive = async trip => {
-    setLiveTrip(trip); setLiveLogs([]); setBusLoc(null); setLiveError(''); setLiveLoading(true); setLiveModalOpen(true);
-    try { await fetchLive(trip); } catch (e) { setLiveError('Failed to load live data.'); } finally { setLiveLoading(false); }
-  };
-  const closeLive = () => { setLiveModalOpen(false); setLiveTrip(null); setBusLoc(null); setLiveLogs([]); };
+  const closeLive = () => { setLiveModalOpen(false); setLiveTrip(null); setLiveLogs([]); setLiveError(''); };
   // Poll live trip data every 10 seconds while the live view is open
   useEffect(() => {
-    if (!liveModalOpen || !liveTrip) return;
-    const i = setInterval(() => fetchLive(liveTrip), 10000);
-    return () => clearInterval(i);
+    if (!liveModalOpen || !liveTrip) return undefined;
+    let active = true;
+    let timer;
+    const controller = new AbortController();
+    const loadLogs = async () => {
+      try {
+        const { data } = await tripAPI.getLogs(liveTrip.id, { signal: controller.signal });
+        if (active) {
+          setLiveLogs(data.logs || []);
+          setLiveError('');
+        }
+      } catch (err) {
+        if (active && !controller.signal.aborted) {
+          setLiveError(err.response?.data?.error || 'Trip student updates could not be loaded.');
+        }
+      } finally {
+        if (active) timer = setTimeout(loadLogs, 10000);
+      }
+    };
+    loadLogs();
+    return () => {
+      active = false;
+      controller.abort();
+      clearTimeout(timer);
+    };
   }, [liveModalOpen, liveTrip]);
 
   const studentStatus = (studentId) => {
@@ -469,24 +483,13 @@ const TripsPage = () => {
               </Group>
               <Grid>
                 <Grid.Col span={{ base: 12, md: 6 }}>
-                  {busLoc ? (
-                    <>
-                      <Box
-                        component="iframe"
-                        title="Bus location"
-                        w="100%"
-                        h={340}
-                        style={{ border: 0, borderRadius: 10 }}
-                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${busLoc.lng - 0.01}%2C${busLoc.lat - 0.008}%2C${busLoc.lng + 0.01}%2C${busLoc.lat + 0.008}&layer=mapnik&marker=${busLoc.lat}%2C${busLoc.lng}`}
-                      />
-                      <Group gap="md" mt={8}>
-                        <Text size="sm">📍 {busLoc.lat.toFixed(5)}, {busLoc.lng.toFixed(5)}</Text>
-                        {busLoc.speed != null && <Text size="sm">🚀 {Math.round(busLoc.speed)} km/h</Text>}
-                        <Text size="sm">🕒 {new Date(busLoc.recordedAt).toLocaleTimeString()}</Text>
-                        <Anchor size="sm" href={`https://www.openstreetmap.org/?mlat=${busLoc.lat}&mlon=${busLoc.lng}#map=16/${busLoc.lat}/${busLoc.lng}`} target="_blank" rel="noreferrer">Open map ↗</Anchor>
-                      </Group>
-                    </>
-                  ) : <EmptyState message={liveLoading ? 'Loading location...' : 'No bus location yet. Waiting for the driver to share GPS.'} />}
+                  {liveModalOpen && liveTrip && (
+                    (liveTrip.vehicleId ?? liveTrip.vehicle?.id) ? (
+                      <VehicleLocationCard vehicleId={liveTrip.vehicleId ?? liveTrip.vehicle.id} tripId={liveTrip.id} />
+                    ) : (
+                      <Alert color="red" icon={<IconAlertCircle size={16} />}>This trip has no vehicle assigned. Its location cannot be loaded.</Alert>
+                    )
+                  )}
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, md: 6 }}>
                   <Title order={5} mb={8}>Students ({roster.length})</Title>
