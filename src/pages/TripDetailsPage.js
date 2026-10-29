@@ -10,6 +10,7 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 import { tripAPI } from '../services/api';
 import { EmptyState, LoadingState, StatusBadge } from '../components/ui';
+import VehicleLocationCard from '../components/VehicleLocationCard';
 
 const formatTime = value => value
   ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -147,6 +148,13 @@ const TripDetailsPage = () => {
 
       <Grid>
         <Grid.Col span={{ base: 12, lg: 7 }}>
+          {isActive ? (
+            trip.vehicle?.id ? (
+              <VehicleLocationCard vehicleId={trip.vehicle.id} tripId={trip.id} />
+            ) : (
+              <Alert color="red" icon={<IconAlertCircle size={16} />}>This trip has no vehicle assigned. Its location cannot be loaded.</Alert>
+            )
+          ) : (
           <Paper withBorder shadow="sm" p="md" h="100%">
             <Group justify="space-between" mb="md">
               <Box>
@@ -173,6 +181,7 @@ const TripDetailsPage = () => {
               </>
             ) : <EmptyState message="No GPS location was recorded for this trip." />}
           </Paper>
+          )}
         </Grid.Col>
 
         <Grid.Col span={{ base: 12, lg: 5 }}>
