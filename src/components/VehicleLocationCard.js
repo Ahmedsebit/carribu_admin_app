@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { vehicleAPI } from '../services/api';
 import { EmptyState } from './ui';
 
-const VehicleLocationCard = ({ vehicleId }) => {
+const VehicleLocationCard = ({ vehicleId, tripId }) => {
   const [state, setState] = useState(null);
 
   useEffect(() => {
@@ -17,11 +17,12 @@ const VehicleLocationCard = ({ vehicleId }) => {
     const poll = async () => {
       try {
         const { data } = await vehicleAPI.getLocation(vehicleId, { signal: controller.signal });
-        if (active) setState({ vehicleId, data, error: '' });
+        if (active) setState({ vehicleId, tripId, data, error: '' });
       } catch (err) {
         if (active && !controller.signal.aborted) {
           setState({
             vehicleId,
+            tripId,
             data: null,
             error: err.response?.data?.error || 'Vehicle location could not be loaded.',
           });
@@ -37,10 +38,12 @@ const VehicleLocationCard = ({ vehicleId }) => {
       controller.abort();
       clearTimeout(timer);
     };
-  }, [vehicleId]);
+  }, [vehicleId, tripId]);
 
-  const current = state?.vehicleId === vehicleId ? state : null;
-  const { trip, location, locationSource } = current?.data || {};
+  const current = state?.vehicleId === vehicleId && state?.tripId === tripId ? state : null;
+  const { location, locationSource } = current?.data || {};
+  const activeTrip = current?.data?.trip;
+  const trip = tripId != null && String(activeTrip?.id) !== String(tripId) ? null : activeTrip;
 
   return (
     <Paper withBorder shadow="sm" p="md">
@@ -56,7 +59,9 @@ const VehicleLocationCard = ({ vehicleId }) => {
       ) : current.error ? (
         <Alert color="red" icon={<IconAlertCircle size={16} />}>{current.error}</Alert>
       ) : !trip ? (
-        <EmptyState message="This vehicle has no active trip. Its location will appear here when a trip starts." />
+        <EmptyState message={tripId != null
+          ? 'This trip is no longer active. Location tracking has stopped.'
+          : 'This vehicle has no active trip. Its location will appear here when a trip starts.'} />
       ) : (
         <Stack gap="sm">
           <Anchor component={Link} to={`/trips/${trip.id}`}>{trip.route?.name || `Trip #${trip.id}`} - View active trip</Anchor>

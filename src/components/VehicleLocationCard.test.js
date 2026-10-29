@@ -24,8 +24,8 @@ const activeTrip = {
   locationSource: 'traccar',
   location: { lat: 0, lng: 0, speed: 0, source: 'traccar', recordedAt: '2026-10-29T08:00:00Z' },
 };
-const render = async (vehicleId = '12') => {
-  await act(async () => { root.render(<VehicleLocationCard vehicleId={vehicleId} />); });
+const render = async (vehicleId = '12', tripId) => {
+  await act(async () => { root.render(<VehicleLocationCard vehicleId={vehicleId} tripId={tripId} />); });
 };
 const tick = async () => {
   await act(async () => { jest.advanceTimersByTime(10000); });
@@ -136,4 +136,43 @@ test('ignores a previous vehicle response after navigation', async () => {
   await act(async () => { resolvePrevious({ data: activeTrip }); });
   expect(container.querySelector('iframe')).toBeNull();
   expect(container.textContent).toContain('This vehicle has no active trip');
+});
+
+test('shows Traccar for the selected trip, including string trip IDs', async () => {
+  await render('12', '5');
+  expect(container.textContent).toContain('Traccar device');
+  expect(container.querySelector('iframe')).not.toBeNull();
+});
+
+test('does not switch the selected trip map to a different trip on the same vehicle', async () => {
+  await render('12', 5);
+  vehicleAPI.getLocation.mockResolvedValueOnce({ data: {
+    ...activeTrip, trip: { ...activeTrip.trip, id: 6 },
+  } });
+  await tick();
+  expect(container.querySelector('iframe')).toBeNull();
+  expect(container.textContent).toContain('This trip is no longer active');
+});
+
+test('clears selected-trip tracking when the trip ends', async () => {
+  await render('12', 5);
+  vehicleAPI.getLocation.mockResolvedValueOnce({ data: noTrip });
+  await tick();
+  expect(container.querySelector('iframe')).toBeNull();
+  expect(container.textContent).toContain('Location tracking has stopped');
+});
+
+test('cancels the previous request when the selected trip changes on the same vehicle', async () => {
+  let resolvePrevious;
+  vehicleAPI.getLocation.mockImplementationOnce(() => new Promise(resolve => { resolvePrevious = resolve; }));
+  vehicleAPI.getLocation.mockResolvedValueOnce({ data: {
+    ...activeTrip, trip: { ...activeTrip.trip, id: 6 }, location: null,
+  } });
+  await render('12', 5);
+  const { signal } = vehicleAPI.getLocation.mock.calls[0][1];
+  await render('12', 6);
+  expect(signal.aborted).toBe(true);
+  await act(async () => { resolvePrevious({ data: activeTrip }); });
+  expect(container.querySelector('iframe')).toBeNull();
+  expect(container.textContent).toContain('Waiting for a Traccar GPS fix');
 });

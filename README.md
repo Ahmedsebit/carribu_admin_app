@@ -61,6 +61,17 @@ No map is shown outside active trips or while waiting for the first valid fix.
 Location request failures are displayed explicitly, and stale points are
 identified by their last GPS fix time rather than labelled as live.
 
+**Trips > Live** uses the same source-aware location map, scoped to the selected
+trip. Linked vehicles wait for Traccar, not driver-phone sharing. When a trip
+ends, the modal stops displaying its location and cannot switch to another
+trip on the same vehicle. Location and student-log request errors are shown
+separately. Closing the modal cancels pending requests and polling.
+
+The map reads the backend's ingested positions; it does not call Traccar
+directly or expose its credentials. The backend polls Traccar every 60 seconds
+and also receives live updates. Polling cannot create a new GPS fix: a linked,
+active vehicle still needs a device fix dated after the trip started.
+
 ## Deployment (Railway)
 
 The app is configured for Railway deployment:
