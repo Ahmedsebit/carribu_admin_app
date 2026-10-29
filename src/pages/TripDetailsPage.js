@@ -158,10 +158,10 @@ const TripDetailsPage = () => {
           <Paper withBorder shadow="sm" p="md" h="100%">
             <Group justify="space-between" mb="md">
               <Box>
-                <Title order={4}>{isActive ? 'Live bus location' : 'Last recorded location'}</Title>
-                <Text size="xs" c="dimmed">{isActive ? 'Updates automatically every 10 seconds' : 'Final GPS point recorded for this trip'}</Text>
+                <Title order={4}>Last recorded location</Title>
+                <Text size="xs" c="dimmed">Final GPS point recorded for this trip</Text>
               </Box>
-              {trip.location && <Badge color={isActive ? 'green' : 'gray'} variant="light">{isActive ? 'Live' : 'Recorded'} • {formatTime(trip.location.recordedAt)}</Badge>}
+              {trip.location && <Badge color="gray" variant="light">Recorded • {formatTime(trip.location.recordedAt)}</Badge>}
             </Group>
             {trip.location ? (
               <>
