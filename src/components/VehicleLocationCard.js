@@ -67,6 +67,12 @@ const VehicleLocationCard = ({ vehicleId, tripId }) => {
           <Anchor component={Link} to={`/trips/${trip.id}`}>{trip.route?.name || `Trip #${trip.id}`} - View active trip</Anchor>
           {location ? (
             <>
+              {location.isLastKnown && (
+                <Alert color="yellow" icon={<IconAlertCircle size={16} />}>
+                  Last known Traccar location{location.predatesTrip ? ' - recorded before this trip started' : ''}.
+                  {' '}Shown for reference only; this snapshot is not a new trip-history point.
+                </Alert>
+              )}
               <Box
                 component="iframe"
                 title="Vehicle location"
@@ -84,7 +90,7 @@ const VehicleLocationCard = ({ vehicleId, tripId }) => {
             </>
           ) : (
             <EmptyState message={locationSource === 'traccar'
-              ? 'Waiting for a Traccar GPS fix recorded after this trip started. The linked device must be online and the vehicle active.'
+              ? 'No valid Traccar location has been received yet. The backend checks the linked device every minute; the vehicle must be active.'
               : 'Waiting for the driver phone to share a GPS location for this trip.'} />
           )}
         </Stack>

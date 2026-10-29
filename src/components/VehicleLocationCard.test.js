@@ -69,7 +69,7 @@ test('shows no map when the vehicle has no active trip', async () => {
 test('waits for a Traccar fix without showing a phone location', async () => {
   vehicleAPI.getLocation.mockResolvedValue({ data: { ...activeTrip, location: null } });
   await render();
-  expect(container.textContent).toContain('Waiting for a Traccar GPS fix');
+  expect(container.textContent).toContain('No valid Traccar location has been received yet');
   expect(container.querySelector('iframe')).toBeNull();
 });
 
@@ -174,5 +174,21 @@ test('cancels the previous request when the selected trip changes on the same ve
   expect(signal.aborted).toBe(true);
   await act(async () => { resolvePrevious({ data: activeTrip }); });
   expect(container.querySelector('iframe')).toBeNull();
-  expect(container.textContent).toContain('Waiting for a Traccar GPS fix');
+  expect(container.textContent).toContain('No valid Traccar location has been received yet');
+});
+
+test('labels pre-trip last-known locations and preserves their actual fix time', async () => {
+  const recordedAt = '2026-10-28T07:00:00Z';
+  vehicleAPI.getLocation.mockResolvedValueOnce({ data: {
+    ...activeTrip,
+    location: { ...activeTrip.location, recordedAt, isLastKnown: true, predatesTrip: true },
+  } });
+  await render('12', 5);
+  expect(container.querySelector('iframe')).not.toBeNull();
+  expect(container.querySelector('[role="alert"]').textContent).toContain('recorded before this trip started');
+  expect(container.textContent).toContain('not a new trip-history point');
+  expect(container.textContent).toContain(`Last GPS fix: ${new Date(recordedAt).toLocaleString()}`);
+  await tick();
+  expect(container.querySelector('[role="alert"]')).toBeNull();
+  expect(container.textContent).toContain(`Last GPS fix: ${new Date(activeTrip.location.recordedAt).toLocaleString()}`);
 });

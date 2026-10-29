@@ -105,8 +105,23 @@ test('missing device fixes wait for Traccar rather than driver-phone sharing', a
   } });
   await render();
   await click('Live');
-  expect(container.textContent).toContain('Waiting for a Traccar GPS fix');
+  expect(container.textContent).toContain('No valid Traccar location has been received yet');
   expect(container.textContent).not.toContain('Waiting for the driver');
+});
+
+test('Live displays a pre-trip Traccar snapshot with a warning instead of hiding the map', async () => {
+  vehicleAPI.getLocation.mockResolvedValue({ data: {
+    trip: { id: 5 }, locationSource: 'traccar',
+    location: {
+      lat: -1.3, lng: 36.8, speed: 0, recordedAt: '2026-10-28T07:00:00Z',
+      isLastKnown: true, predatesTrip: true, source: 'traccar',
+    },
+  } });
+  await render();
+  await click('Live');
+  expect(container.querySelector('iframe')).not.toBeNull();
+  expect(container.textContent).toContain('Last known Traccar location - recorded before this trip started');
+  expect(container.textContent).toContain('not a new trip-history point');
 });
 
 test('location failures are displayed rather than disguised as no GPS data', async () => {
