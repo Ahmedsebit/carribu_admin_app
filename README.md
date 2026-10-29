@@ -53,6 +53,14 @@ Only the **super-admin app** can add, change, or unlink trackers under
 **Schools > school details > Vehicles**. School admins and coordinators cannot
 change tracker assignments, including through the vehicle API.
 
+Open **Vehicles > vehicle details** to view the **Active trip location** map.
+It checks for updates every 10 seconds, shows the GPS fix timestamp, and links
+to the active trip. Linked vehicles show only Traccar positions; there is no
+phone-GPS fallback. Unlinked vehicles continue using driver-phone GPS.
+No map is shown outside active trips or while waiting for the first valid fix.
+Location request failures are displayed explicitly, and stale points are
+identified by their last GPS fix time rather than labelled as live.
+
 ## Deployment (Railway)
 
 The app is configured for Railway deployment:
