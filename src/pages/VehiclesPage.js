@@ -8,7 +8,17 @@ import { vehicleAPI } from '../services/api';
 import Modal from '../components/Modal';
 import { PageHeader, StatsGrid, StatCard, StatusBadge, EmptyState, LoadingState } from '../components/ui';
 
-const empty = { plateNumber: '', make: '', model: '', year: '', capacity: 30, color: '', status: 'active', insuranceExpiry: '', lastServiceDate: '' };
+const empty = {
+  plateNumber: '',
+  make: '',
+  model: '',
+  year: '',
+  capacity: 30,
+  color: '',
+  status: 'active',
+  insuranceExpiry: '',
+  lastServiceDate: '',
+};
 
 const VehiclesPage = () => {
   const navigate = useNavigate();
@@ -39,7 +49,22 @@ const VehiclesPage = () => {
   useEffect(() => { fetch(); }, [fetch]);
 
   const openAdd = () => { setEditing(null); setForm(empty); setError(''); setModalOpen(true); };
-  const openEdit = v => { setEditing(v); setForm({ plateNumber: v.plateNumber, make: v.make || '', model: v.model || '', year: v.year || '', capacity: v.capacity, color: v.color || '', status: v.status, insuranceExpiry: v.insuranceExpiry || '', lastServiceDate: v.lastServiceDate || '' }); setError(''); setModalOpen(true); };
+  const openEdit = v => {
+    setEditing(v);
+    setForm({
+      plateNumber: v.plateNumber,
+      make: v.make || '',
+      model: v.model || '',
+      year: v.year || '',
+      capacity: v.capacity,
+      color: v.color || '',
+      status: v.status,
+      insuranceExpiry: v.insuranceExpiry || '',
+      lastServiceDate: v.lastServiceDate || '',
+    });
+    setError('');
+    setModalOpen(true);
+  };
 
   const save = async () => {
     setError(''); setSaving(true);
@@ -135,6 +160,16 @@ const VehiclesPage = () => {
                   <Text size="xs" c="dimmed">Last service</Text>
                   <Text size="sm" fw={650}>{v.lastServiceDate || 'Not recorded'}</Text>
                 </Group>
+                <Group justify="space-between">
+                  <Text size="xs" c="dimmed">GPS tracker</Text>
+                  <Box ta="right">
+                    <Badge size="sm" variant="light" color={v.trackerUniqueId ? 'green' : 'gray'}>
+                      {v.trackerUniqueId ? 'Linked' : 'Not linked'}
+                    </Badge>
+                    {v.trackerUniqueId && <Text size="xs" mt={4}>{v.trackerUniqueId}</Text>}
+                  </Box>
+                </Group>
+                <Text size="xs" c="dimmed">Tracker links are managed by the super admin.</Text>
               </Stack>
 
               <Group justify="space-between" mt="lg" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-gray-2)' }}>

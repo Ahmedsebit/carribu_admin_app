@@ -46,6 +46,13 @@ npm start
 # App runs at http://localhost:3000
 ```
 
+## GPS tracker links
+
+Vehicle cards and details show the assigned tracker identifier read-only.
+Only the **super-admin app** can add, change, or unlink trackers under
+**Schools > school details > Vehicles**. School admins and coordinators cannot
+change tracker assignments, including through the vehicle API.
+
 ## Deployment (Railway)
 
 The app is configured for Railway deployment:
