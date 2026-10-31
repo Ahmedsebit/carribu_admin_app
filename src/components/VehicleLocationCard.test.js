@@ -36,6 +36,7 @@ afterAll(() => { delete global.IS_REACT_ACT_ENVIRONMENT; });
 
 beforeEach(() => {
   jest.useFakeTimers();
+  jest.setSystemTime(new Date(activeTrip.location.recordedAt));
   jest.resetAllMocks();
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -52,11 +53,20 @@ afterEach(() => {
 test('shows Traccar coordinates, zero speed, fix time and active trip link', async () => {
   await render();
   expect(container.textContent).toContain('Traccar device');
+  expect(container.textContent).toContain('Fresh GPS fix');
   expect(container.textContent).toContain('0.00000, 0.00000');
   expect(container.textContent).toContain('0 km/h');
   expect(container.textContent).toContain(`Last GPS fix: ${new Date(activeTrip.location.recordedAt).toLocaleString()}`);
   expect(container.querySelector('iframe').src).toContain('marker=0%2C0');
   expect(container.querySelector('a').getAttribute('href')).toBe('/trips/5');
+});
+
+test('labels an aged trip fix as last known rather than live', async () => {
+  jest.setSystemTime(new Date(new Date(activeTrip.location.recordedAt).getTime() + 121000));
+  await render();
+  expect(container.textContent).toContain('Last known position');
+  expect(container.textContent).toContain('GPS is not fresh');
+  expect(container.querySelector('iframe')).not.toBeNull();
 });
 
 test('shows no map when the vehicle has no active trip', async () => {

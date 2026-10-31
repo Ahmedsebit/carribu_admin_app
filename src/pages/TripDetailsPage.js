@@ -11,6 +11,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { tripAPI } from '../services/api';
 import { EmptyState, LoadingState, StatusBadge } from '../components/ui';
 import VehicleLocationCard from '../components/VehicleLocationCard';
+import TripNotificationDiagnostics from '../components/TripNotificationDiagnostics';
 
 const formatTime = value => value
   ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -25,6 +26,8 @@ const formatDuration = seconds => {
 const studentStatus = {
   pending: { label: 'Waiting', color: 'gray' },
   arrived: { label: 'Bus arrived', color: 'yellow' },
+  arrived_pickup: { label: 'At pickup', color: 'yellow' },
+  arrived_dropoff: { label: 'At drop-off', color: 'yellow' },
   on_bus: { label: 'On bus', color: 'blue' },
   dropped_off: { label: 'Dropped off', color: 'green' },
   absent: { label: 'Absent', color: 'red' },
@@ -79,6 +82,7 @@ const TripDetailsPage = () => {
 
   const isActive = trip.status === 'in_progress';
   const stats = trip.stats || {};
+  const currentStop = trip.currentStop;
 
   return (
     <Stack gap="lg">
@@ -127,20 +131,27 @@ const TripDetailsPage = () => {
         </Paper>
       </SimpleGrid>
 
-      {isActive && trip.nextStop && (
+      {isActive && (
+        <Alert color={trip.canEnd ? 'green' : 'blue'}>
+          Phase: {trip.phase?.replace(/_/g, ' ') || 'active'}.
+          {trip.canEnd ? ' All students accounted for; this trip can end.' : ' Every student must be dropped off or absent before this trip can end.'}
+        </Alert>
+      )}
+      {isActive && currentStop && (
         <Paper withBorder shadow="sm" p="md" bg="green.0" style={{ borderColor: 'var(--mantine-color-green-3)' }}>
           <Group justify="space-between" align="flex-start">
             <Group align="flex-start">
               <ThemeIcon color="green" size={46} radius="xl"><IconMapPin size={23} /></ThemeIcon>
               <Box>
-                <Text size="xs" fw={700} c="green.8" tt="uppercase">Next {trip.type === 'morning_pickup' ? 'pickup' : 'drop-off'}</Text>
-                <Title order={4}>{trip.nextStop.studentName}</Title>
-                <Text size="sm" c="dimmed">Stop {trip.nextStop.stopNumber} • {trip.nextStop.address || 'Address not provided'}</Text>
+                <Text size="xs" fw={700} c="green.8" tt="uppercase">Current {currentStop.phase === 'pickup' ? 'pickup' : 'drop-off'}</Text>
+                <Title order={4}>{currentStop.studentName}</Title>
+                <Text size="sm" c="dimmed">Stop {currentStop.stopNumber} • {currentStop.address || 'Address not provided'}</Text>
+                {trip.nextStop && <Text size="xs">Then: {trip.nextStop.studentName}</Text>}
               </Box>
             </Group>
             <Box ta="right">
-              <Text size="sm" fw={650}>{trip.nextStop.parentName || 'Parent not listed'}</Text>
-              {trip.nextStop.parentPhone && <Anchor href={`tel:${trip.nextStop.parentPhone}`} size="sm"><IconPhone size={13} /> {trip.nextStop.parentPhone}</Anchor>}
+              <Text size="sm" fw={650}>{currentStop.parentName || 'Parent not listed'}</Text>
+              {currentStop.parentPhone && <Anchor href={`tel:${currentStop.parentPhone}`} size="sm"><IconPhone size={13} /> {currentStop.parentPhone}</Anchor>}
             </Box>
           </Group>
         </Paper>
@@ -208,6 +219,7 @@ const TripDetailsPage = () => {
         </Grid.Col>
       </Grid>
 
+      <TripNotificationDiagnostics tripId={trip.id} />
       <Paper withBorder shadow="sm" p="md">
         <Group justify="space-between" mb="md">
           <Box><Title order={4}>Student stops</Title><Text size="xs" c="dimmed">Full pickup and drop-off details for this trip</Text></Box>

@@ -44,6 +44,9 @@ const VehicleLocationCard = ({ vehicleId, tripId }) => {
   const { location, locationSource } = current?.data || {};
   const activeTrip = current?.data?.trip;
   const trip = tripId != null && String(activeTrip?.id) !== String(tripId) ? null : activeTrip;
+  const age = Date.now() - new Date(location?.recordedAt).getTime();
+  const fresh = !location?.isLastKnown && location?.isFresh !== false
+    && Number.isFinite(age) && age >= -30000 && age <= 120000;
 
   return (
     <Paper withBorder shadow="sm" p="md">
@@ -67,6 +70,8 @@ const VehicleLocationCard = ({ vehicleId, tripId }) => {
           <Anchor component={Link} to={`/trips/${trip.id}`}>{trip.route?.name || `Trip #${trip.id}`} - View active trip</Anchor>
           {location ? (
             <>
+              <Badge color={fresh ? 'green' : 'yellow'}>{fresh ? 'Fresh GPS fix' : 'Last known position'}</Badge>
+              {!fresh && !location.isLastKnown && <Alert color="yellow">GPS is not fresh. This position is not used for arrival alerts or live estimates.</Alert>}
               {location.isLastKnown && (
                 <Alert color="yellow" icon={<IconAlertCircle size={16} />}>
                   Last known Traccar location{location.predatesTrip ? ' - recorded before this trip started' : ''}.

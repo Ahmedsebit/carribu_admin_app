@@ -46,6 +46,23 @@ npm start
 # App runs at http://localhost:3000
 ```
 
+## Trip lifecycle and notification diagnostics
+
+Trip details display the server's frozen itinerary, current stop and trip phase.
+Afternoon students must be explicitly boarded at school or marked absent;
+drop-offs begin only when boarding is resolved. No role can complete a trip
+with unresolved or onboard students. Routes cannot be edited/deactivated during
+an active trip, and drivers/vehicles cannot serve overlapping active trips.
+
+The trip's **Parent notification delivery** panel refreshes every 15 seconds and
+distinguishes queued, retrying, unregistered, receipt-waiting, accepted, failed
+and cancelled events. Accepted means the push provider accepted the alert, not
+that a parent received or read it. Stale GPS positions are labeled last known
+rather than presented as fresh tracking.
+
+Deploy backend migration `0016` before these clients; it supplies the authoritative
+plan/state fields and delivery diagnostics endpoint.
+
 ## GPS tracker links
 
 Vehicle cards and details show the assigned tracker identifier read-only.

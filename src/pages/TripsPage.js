@@ -119,7 +119,7 @@ const TripsPage = () => {
       setError(e.response?.data?.error || 'Failed to start trip.');
     }
   };
-  const end = async id => { try { await tripAPI.end(id); setSuccess('Completed!'); fetch(); setTimeout(() => setSuccess(''), 3000); } catch (e) { /* surfaced via reload */ } };
+  const end = async id => { try { await tripAPI.end(id); setSuccess('Completed!'); fetch(); setTimeout(() => setSuccess(''), 3000); } catch (e) { setError(e.response?.data?.error || 'Failed to end trip.'); } };
   const del = async id => {
     if (!window.confirm('Permanently delete this trip? This cannot be undone.')) return;
     try {
@@ -167,6 +167,7 @@ const TripsPage = () => {
     const sl = liveLogs.filter(l => l.studentId === studentId);
     if (sl.find(l => l.action === 'absent')) return { key: 'absent', label: 'Absent', icon: '❌' };
     if (sl.find(l => l.action === 'check_out')) return { key: 'dropped', label: 'Dropped off', icon: '📤' };
+    if (sl.find(l => l.action === 'arrived' && l.phase === 'dropoff')) return { key: 'arrived', label: 'At drop-off', icon: '📍' };
     if (sl.find(l => l.action === 'check_in')) return { key: 'onbus', label: 'Picked up', icon: '✅' };
     if (sl.find(l => l.action === 'arrived')) return { key: 'arrived', label: 'Bus arrived', icon: '📍' };
     return { key: 'waiting', label: 'Waiting', icon: '⏳' };
@@ -176,7 +177,7 @@ const TripsPage = () => {
   // Build a per-student pickup report from raw trip logs (for the selected trip's roster)
   const buildReport = () => {
     const roster = [...(selectedTrip?.route?.students || [])].sort((a, b) => (a.RouteStudent?.stopOrder || 0) - (b.RouteStudent?.stopOrder || 0));
-    const first = (sid, act) => { const l = tripLogs.filter(x => x.studentId === sid && x.action === act).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))[0]; return l ? l.timestamp : null; };
+    const first = (sid, act) => { const l = tripLogs.filter(x => x.studentId === sid && x.action === act && (act !== 'arrived' || x.phase !== 'dropoff')).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))[0]; return l ? l.timestamp : null; };
     return roster.map(s => {
       const arrived = first(s.id, 'arrived');
       const picked = first(s.id, 'check_in');
