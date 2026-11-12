@@ -9,6 +9,7 @@ import {
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { tripAPI, routeAPI } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import Modal from '../components/Modal';
 import VehicleLocationCard from '../components/VehicleLocationCard';
 import { classifyTimeliness } from '../utils/tripTimeliness';
@@ -43,6 +44,7 @@ const newTripForm = () => {
 
 const TripsPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [trips, setTrips] = useState([]);
   const [routes, setRoutes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -58,6 +60,9 @@ const TripsPage = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [endingTripId, setEndingTripId] = useState(null);
+  const [cancellingTripId, setCancellingTripId] = useState(null);
+  const [endError, setEndError] = useState(null);
   const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
   const [statusFilter, setStatusFilter] = useState('');
   const [timelinessFilter, setTimelinessFilter] = useState('');
@@ -119,7 +124,51 @@ const TripsPage = () => {
       setError(e.response?.data?.error || 'Failed to start trip.');
     }
   };
-  const end = async id => { try { await tripAPI.end(id); setSuccess('Completed!'); fetch(); setTimeout(() => setSuccess(''), 3000); } catch (e) { setError(e.response?.data?.error || 'Failed to end trip.'); } };
+  const end = async id => {
+    if (endingTripId !== null || cancellingTripId !== null) return;
+    setEndingTripId(id);
+    setEndError(null);
+    setError('');
+    setSuccess('');
+    try {
+      await tripAPI.end(id);
+      setSuccess('Completed!');
+      await fetch();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (e) {
+      setEndError({
+        tripId: id,
+        title: 'Trip could not be ended',
+        message: e.response?.data?.error || 'Failed to end trip. Check your connection and try again.',
+        students: e.response?.data?.unresolvedStudents || [],
+      });
+    } finally {
+      setEndingTripId(null);
+    }
+  };
+  const cancel = async id => {
+    if (endingTripId !== null || cancellingTripId !== null) return;
+    if (!window.confirm('Cancel this active trip? This is only allowed before any student has boarded. Parents will be notified.')) return;
+    setCancellingTripId(id);
+    setEndError(null);
+    setError('');
+    setSuccess('');
+    try {
+      await tripAPI.cancel(id);
+      setSuccess('Trip cancelled.');
+      await fetch();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (e) {
+      setEndError({
+        tripId: id,
+        title: 'Trip could not be cancelled',
+        message: e.response?.data?.error || 'Failed to cancel trip. Check your connection and try again.',
+        students: [],
+      });
+    } finally {
+      setCancellingTripId(null);
+    }
+  };
   const del = async id => {
     if (!window.confirm('Permanently delete this trip? This cannot be undone.')) return;
     try {
@@ -240,7 +289,7 @@ const TripsPage = () => {
         <TextInput type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} w={170} />
         <Select
           placeholder="All"
-          data={[{ value: '', label: 'All' }, { value: 'scheduled', label: 'Scheduled' }, { value: 'delayed', label: 'Delayed' }, { value: 'in_progress', label: 'In Progress' }, { value: 'completed', label: 'Completed' }, { value: 'missed', label: 'Not Started' }]}
+          data={[{ value: '', label: 'All' }, { value: 'scheduled', label: 'Scheduled' }, { value: 'delayed', label: 'Delayed' }, { value: 'in_progress', label: 'In Progress' }, { value: 'completed', label: 'Completed' }, { value: 'cancelled', label: 'Cancelled' }, { value: 'missed', label: 'Not Started' }]}
           value={statusFilter}
           onChange={v => setStatusFilter(v || '')}
           w={170}
@@ -317,10 +366,26 @@ const TripsPage = () => {
                   <Button size="xs" variant="light" leftSection={<IconEye size={14} />} onClick={() => navigate(`/trips/${t.id}`)}>Details</Button>
                   {(t.status === 'scheduled' || t.status === 'delayed') && <Button size="xs" color="green" leftSection={<IconPlayerPlay size={14} />} onClick={() => start(t.id)}>Start</Button>}
                   {t.status === 'in_progress' && <Button size="xs" leftSection={<IconBroadcast size={14} />} onClick={() => openLive(t)}>Live</Button>}
-                  {t.status === 'in_progress' && <Button size="xs" variant="default" leftSection={<IconPlayerStop size={14} />} onClick={() => end(t.id)}>End</Button>}
+                  {t.status === 'in_progress' && <Button size="xs" variant="default" leftSection={<IconPlayerStop size={14} />} loading={endingTripId === t.id} disabled={endingTripId !== null || cancellingTripId !== null} onClick={() => end(t.id)}>{endingTripId === t.id ? 'Ending...' : 'End'}</Button>}
+                  {t.status === 'in_progress' && user?.role === 'school_admin' && (
+                    <Button size="xs" color="red" variant="light" loading={cancellingTripId === t.id} disabled={endingTripId !== null || cancellingTripId !== null} onClick={() => cancel(t.id)}>
+                      {cancellingTripId === t.id ? 'Cancelling...' : 'Cancel Trip'}
+                    </Button>
+                  )}
                   <Button size="xs" variant="default" leftSection={<IconClipboardList size={14} />} onClick={() => viewLogs(t)}>Report</Button>
                   {t.status !== 'in_progress' && <Button size="xs" color="red" variant="light" leftSection={<IconTrash size={14} />} onClick={() => del(t.id)}>Delete</Button>}
                 </Group>
+                {endError?.tripId === t.id && (
+                  <Alert color="red" icon={<IconAlertCircle size={16} />} mt="sm" title={endError.title}>
+                    <Text size="sm">{endError.message}</Text>
+                    {endError.students.length > 0 && (
+                      <Text size="sm" mt={4}>
+                        Unresolved students: {endError.students.map(student => `${student.studentName} (${student.status.replace(/_/g, ' ')})`).join(', ')}.
+                        {' '}Record their actual drop-off or absence in the driver app before ending.
+                      </Text>
+                    )}
+                  </Alert>
+                )}
               </Paper>
             );
           })}

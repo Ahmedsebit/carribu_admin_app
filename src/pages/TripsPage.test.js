@@ -2,13 +2,15 @@ import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import TripsPage from './TripsPage';
 import { tripAPI, routeAPI, vehicleAPI, locationAPI } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 jest.mock('../services/api', () => ({
-  tripAPI: { getAll: jest.fn(), getLogs: jest.fn() },
+  tripAPI: { getAll: jest.fn(), getLogs: jest.fn(), end: jest.fn(), cancel: jest.fn() },
   routeAPI: { getAll: jest.fn() },
   vehicleAPI: { getLocation: jest.fn() },
   locationAPI: { getBusLocation: jest.fn() },
 }));
+jest.mock('../contexts/AuthContext', () => ({ useAuth: jest.fn() }));
 jest.mock('react-router-dom', () => ({
   useNavigate: () => jest.fn(),
   Link: ({ children }) => <span>{children}</span>,
@@ -62,6 +64,7 @@ afterAll(() => { delete global.IS_REACT_ACT_ENVIRONMENT; });
 beforeEach(() => {
   jest.useFakeTimers();
   jest.resetAllMocks();
+  useAuth.mockReturnValue({ user: { role: 'school_admin' } });
   trip = {
     id: 5, vehicleId: 12, status: 'in_progress', type: 'morning_pickup',
     scheduledDate: '2026-10-29', startedAt: '2026-10-29T08:00:00Z',
@@ -81,6 +84,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  jest.restoreAllMocks();
   act(() => root.unmount());
   container.remove();
   jest.useRealTimers();
@@ -171,4 +175,98 @@ test('surfaces a missing vehicle instead of requesting an invalid vehicle locati
   await click('Live');
   expect(container.textContent).toContain('This trip has no vehicle assigned');
   expect(vehicleAPI.getLocation).not.toHaveBeenCalled();
+});
+
+test('ending shows progress, prevents repeat submissions and refreshes the completed trip', async () => {
+  let finish;
+  tripAPI.end.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  await render();
+  await click('End');
+  const endingButton = [...container.querySelectorAll('button')].find(button => button.textContent === 'Ending...');
+  expect(endingButton.disabled).toBe(true);
+  await act(async () => { endingButton.click(); });
+  expect(tripAPI.end).toHaveBeenCalledTimes(1);
+  expect(tripAPI.end).toHaveBeenCalledWith(5);
+  trip = { ...trip, status: 'completed' };
+  await act(async () => { finish({ data: { message: 'Trip completed.' } }); });
+  expect(tripAPI.getAll).toHaveBeenCalledTimes(2);
+  expect(container.textContent).toContain('Completed!');
+  expect([...container.querySelectorAll('button')].some(button => ['End', 'Ending...'].includes(button.textContent))).toBe(false);
+});
+
+test('end rejection shows the blocking students beside the trip and allows a retry', async () => {
+  tripAPI.end.mockRejectedValue({
+    response: { data: {
+      error: 'Resolve every student as dropped off or absent before ending this trip.',
+      unresolvedStudents: [{ studentId: 7, studentName: 'Child Test', status: 'on_bus' }],
+    } },
+  });
+  await render();
+  await click('End');
+  const endButton = [...container.querySelectorAll('button')].find(button => button.textContent === 'End');
+  const card = endButton.parentElement.parentElement;
+  expect(endButton.disabled).toBe(false);
+  expect(card.querySelector('[role="alert"]').textContent).toContain('Resolve every student');
+  expect(card.textContent).toContain('Child Test (on bus)');
+  tripAPI.end.mockResolvedValue({});
+  trip = { ...trip, status: 'completed' };
+  await click('End');
+  expect(container.textContent).not.toContain('Child Test (on bus)');
+  expect(container.textContent).toContain('Completed!');
+});
+
+test('end network failures are visible beside the button instead of appearing to do nothing', async () => {
+  tripAPI.end.mockRejectedValue(new Error('Network Error'));
+  await render();
+  await click('End');
+  const endButton = [...container.querySelectorAll('button')].find(button => button.textContent === 'End');
+  expect(endButton.disabled).toBe(false);
+  expect(endButton.parentElement.parentElement.querySelector('[role="alert"]').textContent)
+    .toContain('Failed to end trip. Check your connection and try again.');
+});
+
+test('an admin can confirm cancellation with progress and refresh the cancelled trip', async () => {
+  jest.spyOn(window, 'confirm').mockReturnValue(true);
+  let finish;
+  tripAPI.cancel.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  await render();
+  await click('Cancel Trip');
+  expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('before any student has boarded'));
+  expect(tripAPI.cancel).toHaveBeenCalledWith(5);
+  const cancelling = [...container.querySelectorAll('button')].find(button => button.textContent === 'Cancelling...');
+  expect(cancelling.disabled).toBe(true);
+  await click('End');
+  expect(tripAPI.end).not.toHaveBeenCalled();
+  trip = { ...trip, status: 'cancelled' };
+  await act(async () => { finish({ data: { trip } }); });
+  expect(tripAPI.getAll).toHaveBeenCalledTimes(2);
+  expect(container.textContent).toContain('Trip cancelled.');
+  expect(container.textContent).not.toContain('Cancel Trip');
+});
+
+test('declining cancellation leaves the trip active without a request', async () => {
+  jest.spyOn(window, 'confirm').mockReturnValue(false);
+  await render();
+  await click('Cancel Trip');
+  expect(tripAPI.cancel).not.toHaveBeenCalled();
+  expect(container.textContent).toContain('in progress');
+});
+
+test('a cancellation rejected because of boarding displays the backend error beside the trip', async () => {
+  jest.spyOn(window, 'confirm').mockReturnValue(true);
+  tripAPI.cancel.mockRejectedValue({
+    response: { data: { error: 'This trip cannot be cancelled because a student has already boarded.' } },
+  });
+  await render();
+  await click('Cancel Trip');
+  const button = [...container.querySelectorAll('button')].find(item => item.textContent === 'Cancel Trip');
+  expect(button.disabled).toBe(false);
+  expect(button.parentElement.parentElement.querySelector('[role="alert"]').textContent).toContain('already boarded');
+  expect(tripAPI.end).not.toHaveBeenCalled();
+});
+
+test('non-admin users do not see active-trip cancellation', async () => {
+  useAuth.mockReturnValue({ user: { role: 'coordinator' } });
+  await render();
+  expect(container.textContent).not.toContain('Cancel Trip');
 });
