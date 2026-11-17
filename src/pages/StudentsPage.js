@@ -3,6 +3,7 @@ import { Group, Button, TextInput, Select, Paper, Alert, Badge, ActionIcon, Tool
 import { IconPlus, IconSearch, IconEdit, IconTrash, IconAlertCircle, IconCircleCheck, IconSchool, IconUsers, IconMapPin, IconRoute } from '@tabler/icons-react';
 import { parentAPI, studentAPI } from '../services/api';
 import Modal from '../components/Modal';
+import StudentImportModal from '../components/StudentImportModal';
 import { PageHeader, StatsGrid, StatCard, EmptyState, LoadingState } from '../components/ui';
 
 const empty = { admissionNumber: '', firstName: '', lastName: '', grade: '', parentId: '' };
@@ -19,6 +20,7 @@ const StudentsPage = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -32,13 +34,14 @@ const StudentsPage = () => {
   }, [search, gradeFilter]);
 
   useEffect(() => { fetch(); }, [fetch]);
-  useEffect(() => {
-    parentAPI.getAll()
+  const fetchParents = useCallback(() => {
+    return parentAPI.getAll()
       .then(({ data }) => setParents(
         (data.parents || []).filter(parent => parent.schoolAccessActive)
       ))
       .catch(() => setParents([]));
   }, []);
+  useEffect(() => { fetchParents(); }, [fetchParents]);
 
   const openAdd = () => { setEditing(null); setForm(empty); setError(''); setModalOpen(true); };
   const openEdit = s => {
@@ -81,7 +84,7 @@ const StudentsPage = () => {
       <PageHeader
         title="🎒 Student Management"
         subtitle="Manage students and transport details"
-        actions={<Button leftSection={<IconPlus size={16} />} onClick={openAdd}>Add Student</Button>}
+        actions={<><Button variant="default" onClick={() => setImportOpen(true)}>Import / Upload history</Button><Button leftSection={<IconPlus size={16} />} onClick={openAdd}>Add Student</Button></>}
       />
 
       {success && <Alert color="green" icon={<IconCircleCheck size={16} />} mb="md" withCloseButton onClose={() => setSuccess('')}>{success}</Alert>}
@@ -151,6 +154,7 @@ const StudentsPage = () => {
         </SimpleGrid>
       )}
 
+      <StudentImportModal isOpen={importOpen} onClose={() => setImportOpen(false)} onImported={() => { fetch(); fetchParents(); }} />
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}

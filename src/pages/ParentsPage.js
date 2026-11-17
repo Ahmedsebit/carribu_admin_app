@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Group, Button, TextInput, NumberInput, Table, Paper, Alert, Badge, ActionIcon, Tooltip, Text, Select,
-  FileInput, ScrollArea, Title, Stack, Box, SimpleGrid, ThemeIcon,
+  Group, Button, TextInput, NumberInput, Paper, Alert, Badge, ActionIcon, Tooltip, Text, Select,
+  Title, Stack, Box, SimpleGrid, ThemeIcon,
 } from '@mantine/core';
 import {
   IconPlus, IconSearch, IconEdit, IconTrash, IconEye, IconAlertCircle, IconCircleCheck, IconUpload,
   IconUsers, IconPhone, IconMail, IconMapPin, IconRestore,
 } from '@tabler/icons-react';
-import { parentAPI, studentAPI, importAPI } from '../services/api';
+import { parentAPI, studentAPI } from '../services/api';
 import Modal from '../components/Modal';
+import StudentImportModal from '../components/StudentImportModal';
 import { PageHeader, StatsGrid, StatCard, EmptyState, LoadingState } from '../components/ui';
 
 const LocationPicker = ({ lat, lng, onLocationChange }) => {
@@ -74,10 +75,6 @@ const ParentsPage = () => {
   const [newChildAdmission, setNewChildAdmission] = useState('');
   const [addingChild, setAddingChild] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
-  const [importFile, setImportFile] = useState(null);
-  const [importPreview, setImportPreview] = useState(null);
-  const [importing, setImporting] = useState(false);
-  const [importResults, setImportResults] = useState(null);
 
   const fetchParents = useCallback(async () => {
     setLoading(true);
@@ -193,43 +190,6 @@ const ParentsPage = () => {
     finally { setAddingChild(false); }
   };
 
-  const handleImportFileChange = async (file) => {
-    if (!file) { setImportFile(null); setImportPreview(null); setImportResults(null); return; }
-    setImportFile(file);
-    setImportPreview(null);
-    setImportResults(null);
-    try {
-      const { data } = await importAPI.preview(file);
-      setImportPreview(data);
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to preview CSV');
-    }
-  };
-
-  const handleImport = async () => {
-    if (!importFile) return;
-    setImporting(true);
-    setError('');
-    try {
-      const { data } = await importAPI.importParentsStudents(importFile);
-      setImportResults(data);
-      setSuccess(data.message);
-      fetchParents();
-      setTimeout(() => setSuccess(''), 8000);
-    } catch (err) {
-      setError(err.response?.data?.error || 'Import failed');
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  const closeImportModal = () => {
-    setImportModalOpen(false);
-    setImportFile(null);
-    setImportPreview(null);
-    setImportResults(null);
-  };
-
   const ch = (f, v) => setForm(p => ({ ...p, [f]: v }));
 
   const filtered = parents
@@ -249,7 +209,7 @@ const ParentsPage = () => {
         title="👪 Parent Management"
         subtitle="Manage parents and assign children"
         actions={<>
-          <Button variant="default" leftSection={<IconUpload size={16} />} onClick={() => setImportModalOpen(true)}>Import CSV</Button>
+          <Button variant="default" leftSection={<IconUpload size={16} />} onClick={() => setImportModalOpen(true)}>Import / Upload history</Button>
           <Button leftSection={<IconPlus size={16} />} onClick={openAdd}>Add Parent</Button>
         </>}
       />
@@ -436,109 +396,7 @@ const ParentsPage = () => {
         )}
       </Modal>
 
-      {/* Import CSV Modal */}
-      <Modal
-        isOpen={importModalOpen}
-        onClose={closeImportModal}
-        wide
-        title="📤 Import Parents & Students from CSV"
-        footer={<>
-          <Button variant="default" onClick={closeImportModal}>Close</Button>
-          {importPreview && !importResults && (
-            <Button onClick={handleImport} loading={importing}>
-              Import {importPreview.totalParents} Parents & {importPreview.totalStudents} Students
-            </Button>
-          )}
-        </>}
-      >
-        {error && <Alert color="red" icon={<IconAlertCircle size={16} />}>{error}</Alert>}
-
-        {!importResults ? (
-          <Stack gap="md">
-            <Box>
-              <FileInput label="Select CSV File" placeholder="Choose file..." accept=".csv" leftSection={<IconUpload size={16} />} value={importFile} onChange={handleImportFileChange} />
-              <Text size="xs" c="dimmed" mt={4}>Upload a CSV with columns: Parent Name, Phone Number, Child(ren), Grade/Class</Text>
-            </Box>
-
-            <Alert color="blue" variant="light">
-              Imported parents set their own password in the app using their phone number — no credentials are sent.
-            </Alert>
-
-            {importPreview && (
-              <Box>
-                <Group grow mb="md">
-                  <Paper bg="blue.0" p="md" radius="md">
-                    <Text size="xl" fw={700}>{importPreview.totalParents}</Text>
-                    <Text size="xs" c="dimmed">Parents</Text>
-                  </Paper>
-                  <Paper bg="green.0" p="md" radius="md">
-                    <Text size="xl" fw={700}>{importPreview.totalStudents}</Text>
-                    <Text size="xs" c="dimmed">Students</Text>
-                  </Paper>
-                </Group>
-                <ScrollArea.Autosize mah={300}>
-                  <Table withTableBorder>
-                    <Table.Thead><Table.Tr><Table.Th>Parent</Table.Th><Table.Th>Phone</Table.Th><Table.Th>Children</Table.Th></Table.Tr></Table.Thead>
-                    <Table.Tbody>
-                      {importPreview.parents.map((p, i) => (
-                        <Table.Tr key={i}>
-                          <Table.Td>{p.name}</Table.Td>
-                          <Table.Td>{p.phone || <Text c="red" span size="sm">Missing</Text>}</Table.Td>
-                          <Table.Td>{p.children.map(c => `${c.name} (${c.grade || '?'})`).join(', ')}</Table.Td>
-                        </Table.Tr>
-                      ))}
-                    </Table.Tbody>
-                  </Table>
-                </ScrollArea.Autosize>
-              </Box>
-            )}
-          </Stack>
-        ) : (
-          <Stack gap="md">
-            <Alert color="green" icon={<IconCircleCheck size={16} />}>{importResults.message}</Alert>
-
-            <Group>
-              <Paper bg="blue.0" p="sm" radius="md"><Text size="sm"><strong>{importResults.parentsCreated}</strong> parents created</Text></Paper>
-              <Paper bg="green.0" p="sm" radius="md"><Text size="sm"><strong>{importResults.studentsCreated}</strong> students created</Text></Paper>
-            </Group>
-
-            {importResults.created && importResults.created.length > 0 && (
-              <Box>
-                <Title order={5} mb={4}>Parents Added</Title>
-                <Text size="xs" c="dimmed" mb={8}>They set their own password in the app using their phone number</Text>
-                <ScrollArea.Autosize mah={250}>
-                  <Table withTableBorder>
-                    <Table.Thead><Table.Tr><Table.Th>Name</Table.Th><Table.Th>Phone</Table.Th></Table.Tr></Table.Thead>
-                    <Table.Tbody>
-                      {importResults.created.map((c, i) => (
-                        <Table.Tr key={i}><Table.Td>{c.name}</Table.Td><Table.Td><code>{c.phone || '-'}</code></Table.Td></Table.Tr>
-                      ))}
-                    </Table.Tbody>
-                  </Table>
-                </ScrollArea.Autosize>
-              </Box>
-            )}
-
-            {importResults.skipped?.length > 0 && (
-              <Box>
-                <Title order={5} c="yellow.7" mb={4}>Skipped ({importResults.skipped.length})</Title>
-                <ScrollArea.Autosize mah={100}>
-                  <Stack gap={2}>{importResults.skipped.map((s, i) => <Text key={i} size="sm" c="dimmed">{s}</Text>)}</Stack>
-                </ScrollArea.Autosize>
-              </Box>
-            )}
-
-            {importResults.errors?.length > 0 && (
-              <Box>
-                <Title order={5} c="red" mb={4}>Errors ({importResults.errors.length})</Title>
-                <ScrollArea.Autosize mah={100}>
-                  <Stack gap={2}>{importResults.errors.map((e, i) => <Text key={i} size="sm" c="red">{e}</Text>)}</Stack>
-                </ScrollArea.Autosize>
-              </Box>
-            )}
-          </Stack>
-        )}
-      </Modal>
+      <StudentImportModal isOpen={importModalOpen} onClose={() => setImportModalOpen(false)} onImported={fetchParents} />
     </div>
   );
 };

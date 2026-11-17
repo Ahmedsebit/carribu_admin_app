@@ -22,7 +22,10 @@ export const parentAPI = {
 };
 export const importAPI = {
   preview: file => { const fd = new FormData(); fd.append('file', file); return api.post('/import/preview', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); },
-  importParentsStudents: (file) => { const fd = new FormData(); fd.append('file', file); return api.post('/import/parents-students', fd, { headers: { 'Content-Type': 'multipart/form-data' } }); },
+  importParentsStudents: importId => api.post('/import/parents-students', { importId }),
+  history: (page = 1, config = {}) => api.get('/import/history', { ...config, params: { page } }),
+  getRecord: id => api.get(`/import/${id}`),
+  download: id => api.get(`/import/${id}/download`, { responseType: 'blob' }),
 };
 export const driverAPI = { getAll: () => api.get('/drivers'), getById: id => api.get(`/drivers/${id}`), getTripHistory: (id, days = 30) => api.get(`/drivers/${id}/trip-history`, { params: { days } }), create: d => api.post('/drivers',d), update: (id,d) => api.put(`/drivers/${id}`,d), delete: id => api.delete(`/drivers/${id}`), resetPassword: id => api.post(`/drivers/${id}/reset-password`) };
 export const messageAPI = { sendTripNotification: data => api.post('/messages/trip-notification', data) };
