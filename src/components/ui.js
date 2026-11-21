@@ -42,7 +42,7 @@ export const StatCard = ({ icon, value, label }) => (
     p="md"
     radius="md"
     shadow="sm"
-    style={{ background: 'linear-gradient(135deg, var(--mantine-color-maroon-6), var(--mantine-color-maroon-8))' }}
+    style={{ background: 'linear-gradient(135deg, var(--mantine-color-carribu-7), var(--mantine-color-carribu-9))' }}
   >
     <Group>
       <ThemeIcon size={48} radius="md" c="white" bg="rgba(255, 255, 255, 0.16)">{icon}</ThemeIcon>

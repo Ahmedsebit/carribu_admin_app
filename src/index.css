@@ -5,6 +5,42 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 3px solid var(--mantine-color-carribu-7);
+  outline-offset: 3px;
+}
+
+.sidebar-nav-link:focus-visible {
+  outline-color: white;
+}
+
+.mantine-Button-root, .mantine-ActionIcon-root, .mantine-NavLink-root, .mantine-Burger-root {
+  min-height: 44px;
+}
+
+.mantine-ActionIcon-root, .mantine-Burger-root { min-width: 44px; }
+.mantine-Input-input { font-size: 1rem; }
+
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 1000;
+  padding: 12px 18px;
+  background: white;
+  color: var(--mantine-color-carribu-8);
+  transform: translateY(-200%);
+}
+.skip-link:focus { transform: translateY(0); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 .sidebar-nav-link {
   color: white;
 }

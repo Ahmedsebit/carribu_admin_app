@@ -203,6 +203,7 @@ const RouteDetailsPage = () => {
                   <Group gap="xs" mt="md">
                     <Badge variant="light" color={trip.type === 'morning_pickup' ? 'yellow' : 'blue'}>{trip.type === 'morning_pickup' ? 'Morning pickup' : 'Afternoon drop-off'}</Badge>
                     <Badge variant="light" color="gray">{formatMinutes(trip.durationMinutes)}</Badge>
+                    {trip.attendance.rosterSource === 'recorded_logs' && <Badge variant="light" color="orange">Recorded students only</Badge>}
                   </Group>
                   <Stack gap={6} mt="md">
                     <Group justify="space-between"><Text size="xs" c="dimmed">Driver</Text><Text size="xs" fw={700}>{trip.driver ? `${trip.driver.firstName} ${trip.driver.lastName}` : 'Not assigned'}</Text></Group>

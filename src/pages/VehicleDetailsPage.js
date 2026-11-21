@@ -195,6 +195,7 @@ const VehicleDetailsPage = () => {
                       {trip.type === 'morning_pickup' ? 'Morning pickup' : 'Afternoon drop-off'}
                     </Badge>
                     <Badge variant="light" color="gray">{formatMinutes(trip.durationMinutes)}</Badge>
+                    {trip.attendance.rosterSource === 'recorded_logs' && <Badge variant="light" color="orange">Recorded students only</Badge>}
                   </Group>
 
                   <Stack gap={7} mt="md">

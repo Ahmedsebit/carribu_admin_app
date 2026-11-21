@@ -82,13 +82,14 @@ const TripsPage = () => {
   useEffect(() => { const interval = setInterval(fetch, 15000); return () => clearInterval(interval); }, [dateFilter, statusFilter]);
 
   const schedule = async () => {
+    if (!form.scheduledTime) { setError('A scheduled start time is required for every trip.'); return; }
     setError(''); setSaving(true);
     try {
       const payload = {
         routeId: form.routeId,
         type: form.type,
         scheduledDate: form.scheduledDate,
-        scheduledTime: form.scheduledTime || null,
+        scheduledTime: form.scheduledTime,
       };
       if (form.recurrenceMode !== 'once') {
         payload.recurrence = {
@@ -98,8 +99,9 @@ const TripsPage = () => {
         };
       }
       const { data } = await tripAPI.create(payload);
-      const skipped = data.skippedCount ? ` ${data.skippedCount} existing ${data.skippedCount === 1 ? 'trip was' : 'trips were'} skipped.` : '';
-      setSuccess(`${data.message}${skipped}`);
+      const skipped = data.skippedCount ? ` ${data.skippedCount} ${data.skippedCount === 1 ? 'date was' : 'dates were'} skipped because of duplicates or conflicts.` : '';
+      const conflicts = data.conflicts?.length ? ' Some dates have student, driver or vehicle conflicts; review the schedule before departure.' : '';
+      setSuccess(`${data.message}${skipped}${conflicts}`);
       setModalOpen(false);
       if (dateFilter === form.scheduledDate) fetch();
       else setDateFilter(form.scheduledDate);
@@ -405,7 +407,7 @@ const TripsPage = () => {
               disabled={
                 !form.routeId ||
                 !form.scheduledDate ||
-                (form.recurrenceMode !== 'once' && (!form.scheduledTime || !form.recurrenceEndDate)) ||
+                !form.scheduledTime || (form.recurrenceMode !== 'once' && !form.recurrenceEndDate) ||
                 (form.recurrenceMode === 'weekly' && form.weekdays.length === 0)
               }
             >
@@ -428,7 +430,7 @@ const TripsPage = () => {
               recurrenceEndDate: p.recurrenceEndDate < e.target.value ? e.target.value : p.recurrenceEndDate,
             }))}
           />
-          <TextInput type="time" label={form.recurrenceMode === 'once' ? 'Time' : 'Time *'} value={form.scheduledTime} onChange={e => setForm(p => ({ ...p, scheduledTime: e.target.value }))} />
+          <TextInput type="time" label="Scheduled start time" required value={form.scheduledTime} onChange={e => setForm(p => ({ ...p, scheduledTime: e.target.value }))} />
         </Group>
         <Select
           label="Repeats"

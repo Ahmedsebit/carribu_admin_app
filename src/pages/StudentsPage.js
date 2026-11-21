@@ -14,6 +14,7 @@ const StudentsPage = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [gradeFilter, setGradeFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('active');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
@@ -28,10 +29,11 @@ const StudentsPage = () => {
       const p = {};
       if (search) p.search = search;
       if (gradeFilter) p.grade = gradeFilter;
+      if (statusFilter) p.status = statusFilter;
       const { data } = await studentAPI.getAll(p);
       setStudents(data.students);
-    } catch (e) { /* keep previous state on failure */ } finally { setLoading(false); }
-  }, [search, gradeFilter]);
+    } catch (e) { setError(e.response?.data?.error || 'Students could not be loaded.'); } finally { setLoading(false); }
+  }, [search, gradeFilter, statusFilter]);
 
   useEffect(() => { fetch(); }, [fetch]);
   const fetchParents = useCallback(() => {
@@ -68,8 +70,20 @@ const StudentsPage = () => {
   };
 
   const del = async id => {
-    if (!window.confirm('Deactivate?')) return;
-    try { await studentAPI.delete(id); setSuccess('Deactivated.'); fetch(); setTimeout(() => setSuccess(''), 3000); } catch (e) { /* surfaced via reload */ }
+    if (!window.confirm('Deactivate this student? Route assignments will be kept, but future trips will exclude them. Active trips must first be completed or safely cancelled.')) return;
+    setError('');
+    try { await studentAPI.delete(id); setSuccess('Deactivated. Route assignments retained.'); fetch(); setTimeout(() => setSuccess(''), 3000); }
+    catch (e) { setError(e.response?.data?.error || 'Student could not be deactivated.'); }
+  };
+
+  const reactivate = async id => {
+    if (!window.confirm('Reactivate this student for future trips using their retained route assignments?')) return;
+    setError('');
+    try {
+      await studentAPI.update(id, { isActive: true });
+      setSuccess('Reactivated for future trips. Current trip rosters are unchanged.');
+      fetch();
+    } catch (e) { setError(e.response?.data?.error || 'Student could not be reactivated.'); }
   };
 
   const ch = (f, v) => setForm(p => ({ ...p, [f]: v }));
@@ -88,14 +102,16 @@ const StudentsPage = () => {
       />
 
       {success && <Alert color="green" icon={<IconCircleCheck size={16} />} mb="md" withCloseButton onClose={() => setSuccess('')}>{success}</Alert>}
+      {error && !modalOpen && <Alert color="red" mb="md" withCloseButton onClose={() => setError('')}>{error}</Alert>}
 
       <StatsGrid cols={3}>
-        <StatCard icon="🎒" value={students.length} label="Total" color="blue" />
+        <StatCard icon="🎒" value={students.length} label="Matching students" color="blue" />
         <StatCard icon="🗺️" value={students.filter(s => s.routes?.length > 0).length} label="Assigned" color="green" />
         <StatCard icon="⚠️" value={students.filter(s => !s.routes || s.routes.length === 0).length} label="Unassigned" color="yellow" />
       </StatsGrid>
 
       <Group mb="md">
+        <Select label="Student status" data={[{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }, { value: '', label: 'All statuses' }]} value={statusFilter} onChange={value => setStatusFilter(value || '')} w={180} />
         <TextInput placeholder="Search students..." leftSection={<IconSearch size={16} />} value={search} onChange={e => setSearch(e.target.value)} w={280} />
         <Select
           placeholder="All Grades"
@@ -117,9 +133,11 @@ const StudentsPage = () => {
                     <ThemeIcon size={46} radius="xl" color="blue" variant="light"><IconSchool size={23} /></ThemeIcon>
                     <Box style={{ minWidth: 0 }}>
                       <Text fw={800} truncate>{s.firstName} {s.lastName}</Text>
+                      <Badge color={s.isActive === false ? 'gray' : 'blue'} variant="light">{s.isActive === false ? 'Inactive' : 'Active'}</Badge>
                       <Badge mt={4} size="sm" variant="light" color="gray">{s.admissionNumber || 'No admission number'}</Badge>
                     </Box>
                   </Group>
+                  {s.isActive === false && <Text size="xs" c="dimmed" mt="xs">Excluded from future trips. Route assignments retained for reactivation.</Text>}
                   <Badge color={routes.length ? 'green' : 'orange'} variant="light">{routes.length ? 'Assigned' : 'Unassigned'}</Badge>
                 </Group>
 
@@ -146,7 +164,9 @@ const StudentsPage = () => {
 
                 <Group justify="space-between" mt="lg" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-gray-2)' }}>
                   <Button variant="light" size="xs" leftSection={<IconEdit size={15} />} onClick={() => openEdit(s)}>Edit student</Button>
-                  <Tooltip label="Deactivate student"><ActionIcon variant="light" color="red" onClick={() => del(s.id)}><IconTrash size={16} /></ActionIcon></Tooltip>
+                  {s.isActive === false
+                    ? <Button variant="light" color="green" size="xs" onClick={() => reactivate(s.id)}>Reactivate</Button>
+                    : <Tooltip label="Deactivate student"><ActionIcon aria-label={`Deactivate ${s.firstName} ${s.lastName}`} variant="light" color="red" onClick={() => del(s.id)}><IconTrash size={16} /></ActionIcon></Tooltip>}
                 </Group>
               </Paper>
             );

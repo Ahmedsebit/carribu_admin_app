@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Group, Button, TextInput, NumberInput, Paper, Alert, Badge, ActionIcon, Tooltip, Text, Select,
-  Title, Stack, Box, SimpleGrid, ThemeIcon,
+  Title, Stack, Box, SimpleGrid, ThemeIcon, Table,
 } from '@mantine/core';
 import {
   IconPlus, IconSearch, IconEdit, IconTrash, IconEye, IconAlertCircle, IconCircleCheck, IconUpload,
@@ -75,6 +75,8 @@ const ParentsPage = () => {
   const [newChildAdmission, setNewChildAdmission] = useState('');
   const [addingChild, setAddingChild] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [invitation, setInvitation] = useState(null);
+  const [invitingParent, setInvitingParent] = useState(null);
 
   const fetchParents = useCallback(async () => {
     setLoading(true);
@@ -87,7 +89,7 @@ const ParentsPage = () => {
   useEffect(() => { fetchParents(); }, [fetchParents]);
 
   const openAdd = () => { setEditing(null); setForm(emptyForm); setError(''); setModalOpen(true); };
-  const openEdit = p => { setEditing(p); setForm({ firstName: p.firstName, lastName: p.lastName, email: p.email, phone: p.phone || '', pickupAddress: p.pickupAddress || '', pickupLat: p.pickupLat || '', pickupLng: p.pickupLng || '' }); setError(''); setModalOpen(true); };
+  const openEdit = p => { setEditing(p); setForm({ firstName: p.firstName, lastName: p.lastName, email: p.email, phone: p.phone || '', pickupAddress: p.pickupAddress || '', pickupLat: p.pickupLat ?? '', pickupLng: p.pickupLng ?? '' }); setError(''); setModalOpen(true); };
 
   const openDetail = async (p) => {
     try {
@@ -104,16 +106,32 @@ const ParentsPage = () => {
     if (!editing && !form.phone?.trim()) { setError('Phone number is required.'); return; }
     setSaving(true);
     try {
+      const payload = {
+        ...form, pickupLat: form.pickupLat === '' ? null : form.pickupLat,
+        pickupLng: form.pickupLng === '' ? null : form.pickupLng,
+      };
       if (editing) {
-        await parentAPI.update(editing.id, form);
+        await parentAPI.update(editing.id, payload);
         setSuccess('Parent updated!');
       } else {
-        await parentAPI.create(form);
-        setSuccess('Parent added! They can set their password in the app using their phone number.');
+        await parentAPI.create(payload);
+        setSuccess('Parent added. Issue an activation code and share it with the verified parent.');
       }
       setModalOpen(false); fetchParents();
       setTimeout(() => setSuccess(''), 5000);
     } catch (e) { setError(e.response?.data?.error || 'Failed to save'); } finally { setSaving(false); }
+  };
+
+  const createInvitation = async parent => {
+    if (!window.confirm(`Issue a new activation code for ${parent.firstName} ${parent.lastName}? Any previous code will stop working. Share it only after verifying their identity.`)) return;
+    setInvitingParent(parent.id);
+    setError('');
+    try {
+      const { data } = await parentAPI.issueActivationInvitation(parent.id);
+      setInvitation({ ...data, parentName: `${parent.firstName} ${parent.lastName}` });
+    } catch (e) {
+      setError(e.response?.data?.error || 'Could not issue activation code.');
+    } finally { setInvitingParent(null); }
   };
 
   const deactivate = async id => {
@@ -278,6 +296,12 @@ const ParentsPage = () => {
                     </Group>
                   ) : <Text size="sm" c="dimmed">No children linked yet</Text>}
                 </Box>
+                {accessActive && p.mustSetPassword && (
+                  <Stack gap={6} mt="sm">
+                    <Badge color="orange" variant="light">Account activation pending</Badge>
+                    <Button size="xs" variant="light" loading={invitingParent === p.id} onClick={() => createInvitation(p)}>Issue activation code</Button>
+                  </Stack>
+                )}
 
                 <Group justify="space-between" mt="lg" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-gray-2)' }}>
                   <Group gap={6}>
@@ -318,7 +342,7 @@ const ParentsPage = () => {
           <NumberInput label="Pickup Longitude" decimalScale={6} value={form.pickupLng} onChange={v => ch('pickupLng', v)} placeholder="36.8219" />
         </Group>
         <LocationPicker lat={form.pickupLat} lng={form.pickupLng} onLocationChange={(lat, lng) => setForm(p => ({ ...p, pickupLat: lat, pickupLng: lng }))} />
-        {!editing && <Text size="xs" c="dimmed">A temporary password will be auto-generated and emailed to the parent.</Text>}
+        {!editing && <Text size="xs" c="dimmed">After creating the parent, issue a single-use activation code and share it through a verified school contact. No temporary password is emailed.</Text>}
       </Modal>
 
       {/* Detail/Children Modal */}
@@ -394,6 +418,17 @@ const ParentsPage = () => {
             </Box>
           </Stack>
         )}
+      </Modal>
+
+      <Modal isOpen={!!invitation} onClose={() => setInvitation(null)} title="Parent activation invitation"
+        footer={<Button variant="default" onClick={() => setInvitation(null)}>Close</Button>}>
+        {invitation && <Stack gap="md">
+          <Text fw={700}>{invitation.parentName}</Text>
+          <Alert color="orange">Give this code only to the verified parent. It is shown only now, can be used once, and replaces any previous code.</Alert>
+          <TextInput label="Activation code" value={invitation.code} readOnly styles={{ input: { fontFamily: 'monospace' } }} />
+          <Text size="sm">Expires: {new Date(invitation.expiresAt).toLocaleString()}</Text>
+          <Text size="sm" c="dimmed">The parent selects &quot;Set up your account&quot; in the parent app and enters their registered phone number and this code.</Text>
+        </Stack>}
       </Modal>
 
       <StudentImportModal isOpen={importModalOpen} onClose={() => setImportModalOpen(false)} onImported={fetchParents} />

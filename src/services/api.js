@@ -2,18 +2,24 @@ import axios from 'axios';
 const API_BASE = process.env.REACT_APP_API_URL || 'https://carribubackend-production.up.railway.app/api';
 const api = axios.create({ baseURL: API_BASE, headers: {'Content-Type':'application/json'} });
 api.interceptors.request.use(config => { const t = localStorage.getItem('token'); if(t) config.headers.Authorization = `Bearer ${t}`; return config; });
-api.interceptors.response.use(r => r, err => { if(err.response?.status===401){localStorage.removeItem('token');localStorage.removeItem('user');window.location.href='/login';} return Promise.reject(err); });
+api.interceptors.response.use(r => r, err => { if(err.response?.status===401 && err.config?.url !== '/auth/login'){localStorage.removeItem('token');localStorage.removeItem('user');window.location.href='/login';} return Promise.reject(err); });
 export const authAPI = { login: d => api.post('/auth/login',d), register: d => api.post('/auth/register',d), getMe: () => api.get('/auth/me') };
-export const schoolAPI = { getAll: () => api.get('/schools'), getById: id => api.get(`/schools/${id}`), getDashboard: id => api.get(`/schools/${id}/dashboard`), create: d => api.post('/schools',d), update: (id,d) => api.put(`/schools/${id}`,d) };
-export const vehicleAPI = { getAll: p => api.get('/vehicles',{params:p}), getById: id => api.get(`/vehicles/${id}`), getLocation: (id, config) => api.get(`/vehicles/${id}/location`, config), getTripHistory: (id, days = 30) => api.get(`/vehicles/${id}/trip-history`, { params: { days } }), getStats: () => api.get('/vehicles/stats/summary'), create: d => api.post('/vehicles',d), update: (id,d) => api.put(`/vehicles/${id}`,d), delete: id => api.delete(`/vehicles/${id}`) };
+export const schoolAPI = { getAll: () => api.get('/schools'), getById: id => api.get(`/schools/${id}`), getDashboard: (id, config) => api.get(`/schools/${id}/dashboard`, config), create: d => api.post('/schools',d), update: (id,d) => api.put(`/schools/${id}`,d) };
+export const vehicleAPI = { getAll: p => api.get('/vehicles',{params:p}), getById: id => api.get(`/vehicles/${id}`), getLocation: (id, config) => api.get(`/vehicles/${id}/location`, config), getTripHistory: (id, days = 30) => api.get(`/vehicles/${id}/trip-history`, { params: { days } }), getStats: config => api.get('/vehicles/stats/summary', config), create: d => api.post('/vehicles',d), update: (id,d) => api.put(`/vehicles/${id}`,d), delete: id => api.delete(`/vehicles/${id}`) };
 export const studentAPI = { getAll: p => api.get('/students',{params:p}), getById: id => api.get(`/students/${id}`), create: d => api.post('/students',d), update: (id,d) => api.put(`/students/${id}`,d), delete: id => api.delete(`/students/${id}`), assignRoute: (id,d) => api.post(`/students/${id}/assign-route`,d) };
 export const routeAPI = { getAll: () => api.get('/routes'), getById: id => api.get(`/routes/${id}`), getTripHistory: (id, days = 30) => api.get(`/routes/${id}/trip-history`, { params: { days } }), create: d => api.post('/routes',d), update: (id,d) => api.put(`/routes/${id}`,d), delete: id => api.delete(`/routes/${id}`), suggestStudents: d => api.post('/routes/suggest-students',d) };
-export const tripAPI = { getAll: p => api.get('/trips',{params:p}), getDetails: id => api.get(`/trips/${id}/details`), getNotifications: (id, config) => api.get(`/trips/${id}/notifications`, config), create: d => api.post('/trips',d), start: id => api.put(`/trips/${id}/start`), end: id => api.put(`/trips/${id}/end`), cancel: id => api.put(`/trips/${id}/cancel`), logAction: (id,d) => api.post(`/trips/${id}/log`,d), getLogs: (id, config) => api.get(`/trips/${id}/logs`, config), delete: id => api.delete(`/trips/${id}`) };
+export const tripAPI = { getAll: (p, config = {}) => api.get('/trips',{...config, params:p}), getDetails: id => api.get(`/trips/${id}/details`), getNotifications: (id, config) => api.get(`/trips/${id}/notifications`, config), create: d => api.post('/trips',d), start: id => api.put(`/trips/${id}/start`), end: id => api.put(`/trips/${id}/end`), cancel: id => api.put(`/trips/${id}/cancel`), logAction: (id,d) => api.post(`/trips/${id}/log`,d), getLogs: (id, config) => api.get(`/trips/${id}/logs`, config), delete: id => api.delete(`/trips/${id}`) };
+export const absenceAPI = {
+  getAll: (params, config = {}) => api.get('/absences', { ...config, params }),
+  confirm: (id, data) => api.post(`/absences/${id}/confirm`, data),
+  reject: (id, data) => api.post(`/absences/${id}/reject`, data),
+};
 export const locationAPI = { getBusLocation: tripId => api.get(`/location/bus/${tripId}`), getHistory: tripId => api.get(`/location/history/${tripId}`) };
 export const parentAPI = {
   getAll: () => api.get('/parents'),
   getById: id => api.get(`/parents/${id}`),
   create: d => api.post('/parents',d),
+  issueActivationInvitation: id => api.post(`/parents/${id}/activation-invitation`),
   update: (id,d) => api.put(`/parents/${id}`,d),
   delete: id => api.delete(`/parents/${id}`),
   reactivate: id => api.put(`/parents/${id}/reactivate`),
@@ -27,6 +33,6 @@ export const importAPI = {
   getRecord: id => api.get(`/import/${id}`),
   download: id => api.get(`/import/${id}/download`, { responseType: 'blob' }),
 };
-export const driverAPI = { getAll: () => api.get('/drivers'), getById: id => api.get(`/drivers/${id}`), getTripHistory: (id, days = 30) => api.get(`/drivers/${id}/trip-history`, { params: { days } }), create: d => api.post('/drivers',d), update: (id,d) => api.put(`/drivers/${id}`,d), delete: id => api.delete(`/drivers/${id}`), resetPassword: id => api.post(`/drivers/${id}/reset-password`) };
+export const driverAPI = { getAll: config => api.get('/drivers', config), getById: id => api.get(`/drivers/${id}`), getTripHistory: (id, days = 30) => api.get(`/drivers/${id}/trip-history`, { params: { days } }), create: d => api.post('/drivers',d), update: (id,d) => api.put(`/drivers/${id}`,d), delete: id => api.delete(`/drivers/${id}`), resetPassword: id => api.post(`/drivers/${id}/reset-password`) };
 export const messageAPI = { sendTripNotification: data => api.post('/messages/trip-notification', data) };
 export default api;

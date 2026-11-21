@@ -173,6 +173,7 @@ const DriverDetailsPage = () => {
                   <Group gap="xs" mt="md">
                     <Badge variant="light" color={trip.type === 'morning_pickup' ? 'yellow' : 'blue'}>{trip.type === 'morning_pickup' ? 'Morning pickup' : 'Afternoon drop-off'}</Badge>
                     <Badge variant="light" color="gray">{formatMinutes(trip.durationMinutes)}</Badge>
+                    {trip.attendance.rosterSource === 'recorded_logs' && <Badge variant="light" color="orange">Recorded students only</Badge>}
                   </Group>
                   <Group justify="space-between" mt="md"><Text size="xs" c="dimmed">Vehicle</Text><Text size="xs" fw={700}>{trip.vehicle?.plateNumber || 'Not assigned'}</Text></Group>
                   <Box mt="md">

@@ -16,6 +16,7 @@ import TripHistoryPage from './pages/TripHistoryPage';
 import ParentsPage from './pages/ParentsPage';
 import DriversPage from './pages/DriversPage';
 import DriverDetailsPage from './pages/DriverDetailsPage';
+import AbsenceRequestsPage from './pages/AbsenceRequestsPage';
 
 const ProtectedRoute = ({children}) => {
   const {isAuthenticated,loading}=useAuth();
@@ -36,6 +37,7 @@ const AppRoutes = () => {
       <Route path="/trips" element={<ProtectedRoute><AppLayout><TripsPage/></AppLayout></ProtectedRoute>}/>
       <Route path="/trips/:id" element={<ProtectedRoute><AppLayout><TripDetailsPage/></AppLayout></ProtectedRoute>}/>
       <Route path="/trip-history" element={<ProtectedRoute><AppLayout><TripHistoryPage/></AppLayout></ProtectedRoute>}/>
+      <Route path="/absences" element={<ProtectedRoute><AppLayout><AbsenceRequestsPage/></AppLayout></ProtectedRoute>}/>
       <Route path="/parents" element={<ProtectedRoute><AppLayout><ParentsPage/></AppLayout></ProtectedRoute>}/>
       <Route path="/drivers" element={<ProtectedRoute><AppLayout><DriversPage/></AppLayout></ProtectedRoute>}/>
       <Route path="/drivers/:id" element={<ProtectedRoute><AppLayout><DriverDetailsPage/></AppLayout></ProtectedRoute>}/>

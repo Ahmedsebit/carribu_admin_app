@@ -7,6 +7,7 @@ jest.mock('../services/api', () => ({
   tripAPI: { getDetails: jest.fn() },
   vehicleAPI: { getLocation: jest.fn() },
 }));
+jest.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ user: { role: 'driver' } }) }));
 jest.mock('react-router-dom', () => ({
   useParams: () => ({ id: '5' }),
   useNavigate: () => jest.fn(),
@@ -25,6 +26,8 @@ jest.mock('@mantine/core', () => {
     Th: Container, Tbody: Container, Td: Container,
   });
   return {
+    Modal: ({ opened, children }) => opened ? <div>{children}</div> : null,
+    Divider: () => null,
     Alert: ({ children }) => <div role="alert">{children}</div>,
     Button: ({ children, onClick }) => <button onClick={onClick}>{children}</button>,
     Anchor: ({ href, to, children }) => <a href={href || to}>{children}</a>,

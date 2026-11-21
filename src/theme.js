@@ -9,6 +9,7 @@ const theme = createTheme({
   defaultRadius: 'md',
   fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
   headings: { fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif', fontWeight: '700' },
+  fontSizes: { xs: rem(14), sm: rem(14), md: rem(16), lg: rem(18), xl: rem(22) },
   colors: {
     // Blue ramp sampled from the Carribu road-mark logo.
     carribu: [
@@ -55,10 +56,10 @@ const theme = createTheme({
   },
   radius: { xs: rem(4), sm: rem(6), md: rem(10), lg: rem(14), xl: rem(20) },
   components: {
-    Button: { defaultProps: { radius: 'md', color: 'maroon' } },
+    Button: { defaultProps: { radius: 'md', color: 'carribu' } },
     Paper: { defaultProps: { radius: 'md' } },
     Card: { defaultProps: { radius: 'md' } },
-    Modal: { defaultProps: { radius: 'md', overlayProps: { backgroundOpacity: 0.55, blur: 2 } } },
+    Modal: { defaultProps: { radius: 'md', overlayProps: { backgroundOpacity: 0.55 } } },
     Badge: { defaultProps: { radius: 'sm' } },
   },
 });

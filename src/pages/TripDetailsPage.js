@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert, Anchor, Badge, Box, Button, Grid, Group, Paper, Progress, SimpleGrid,
-  Stack, Table, Text, ThemeIcon, Title,
+  Select, Stack, Table, Text, Textarea, ThemeIcon, Title,
 } from '@mantine/core';
 import {
   IconAlertCircle, IconArrowLeft, IconBus, IconClock, IconMapPin,
@@ -12,6 +12,8 @@ import { tripAPI } from '../services/api';
 import { EmptyState, LoadingState, StatusBadge } from '../components/ui';
 import VehicleLocationCard from '../components/VehicleLocationCard';
 import TripNotificationDiagnostics from '../components/TripNotificationDiagnostics';
+import Modal from '../components/Modal';
+import { useAuth } from '../contexts/AuthContext';
 
 const formatTime = value => value
   ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -43,10 +45,15 @@ const actionLabel = {
 const TripDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [trip, setTrip] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [reconciliation, setReconciliation] = useState(null);
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true);
@@ -69,6 +76,36 @@ const TripDetailsPage = () => {
     return () => clearInterval(timer);
   }, [load, trip?.status]);
 
+  const openReconciliation = student => {
+    setReconciliation({
+      student, action: ['pending', 'arrived_pickup'].includes(student.status) ? 'check_in' : 'check_out',
+      key: `staff:${id}:${student.studentId}:${Date.now()}`,
+    });
+    setNotes('');
+    setActionError('');
+  };
+  const saveReconciliation = async () => {
+    if (!notes.trim()) { setActionError('Explain how the outcome was verified.'); return; }
+    setSaving(true);
+    try {
+      await tripAPI.logAction(id, {
+        studentId: reconciliation.student.studentId, action: reconciliation.action,
+        phase: reconciliation.action === 'check_out' ? 'dropoff' : 'pickup',
+        notes: notes.trim(), idempotencyKey: reconciliation.key,
+      });
+      setReconciliation(null);
+      await load(true);
+    } catch (err) { setActionError(err.response?.data?.error || 'Attendance could not be recorded.'); }
+    finally { setSaving(false); }
+  };
+  const complete = async () => {
+    if (!window.confirm('Complete this trip? Every student must have a recorded dropped-off or absent outcome.')) return;
+    setSaving(true);
+    try { await tripAPI.end(id); await load(true); }
+    catch (err) { setError(err.response?.data?.error || 'The trip could not be completed.'); }
+    finally { setSaving(false); }
+  };
+
   if (loading) return <LoadingState label="Loading trip details..." />;
 
   if (!trip) {
@@ -81,6 +118,8 @@ const TripDetailsPage = () => {
   }
 
   const isActive = trip.status === 'in_progress';
+  const canReconcile = isActive && ['school_admin', 'coordinator'].includes(user?.role);
+  const pickupsOutstanding = trip.pickupList.some(student => ['pending', 'arrived_pickup'].includes(student.status));
   const stats = trip.stats || {};
   const currentStop = trip.currentStop;
 
@@ -137,6 +176,12 @@ const TripDetailsPage = () => {
           {trip.canEnd ? ' All students accounted for; this trip can end.' : ' Every student must be dropped off or absent before this trip can end.'}
         </Alert>
       )}
+      {canReconcile && <Group>
+        <Text size="sm">Staff can record verified attendance below. Outcomes require an explanatory note.</Text>
+        <Button variant="light" onClick={() => navigate('/absences')}>Review parent absence requests</Button>
+        <Button color="green" disabled={!trip.canEnd} loading={saving} onClick={complete}>Complete resolved trip</Button>
+      </Group>}
+      {trip.rosterSource === 'recorded_logs' && <Alert color="yellow">This older trip has no frozen roster. Totals include only students with recorded logs; the original expected roster cannot be reconstructed.</Alert>}
       {isActive && currentStop && (
         <Paper withBorder shadow="sm" p="md" bg="green.0" style={{ borderColor: 'var(--mantine-color-green-3)' }}>
           <Group justify="space-between" align="flex-start">
@@ -228,7 +273,7 @@ const TripDetailsPage = () => {
         {trip.pickupList.length ? (
           <Table.ScrollContainer minWidth={950}>
             <Table verticalSpacing="sm" highlightOnHover>
-              <Table.Thead><Table.Tr><Table.Th>Stop</Table.Th><Table.Th>Student</Table.Th><Table.Th>Parent</Table.Th><Table.Th>Address</Table.Th><Table.Th>Arrived</Table.Th><Table.Th>Picked up</Table.Th><Table.Th>Dropped off</Table.Th><Table.Th>Wait</Table.Th><Table.Th>Status</Table.Th></Table.Tr></Table.Thead>
+              <Table.Thead><Table.Tr><Table.Th>Stop</Table.Th><Table.Th>Student</Table.Th><Table.Th>Parent</Table.Th><Table.Th>Address</Table.Th><Table.Th>Arrived</Table.Th><Table.Th>Picked up</Table.Th><Table.Th>Dropped off</Table.Th><Table.Th>Wait</Table.Th><Table.Th>Status</Table.Th>{canReconcile && <Table.Th>Reconcile</Table.Th>}</Table.Tr></Table.Thead>
               <Table.Tbody>
                 {trip.pickupList.map(student => {
                   const meta = studentStatus[student.status] || studentStatus.pending;
@@ -243,18 +288,19 @@ const TripDetailsPage = () => {
                       <Table.Td>{formatTime(student.droppedAt)}</Table.Td>
                       <Table.Td>{formatDuration(student.waitSeconds)}</Table.Td>
                       <Table.Td><Badge color={meta.color} variant="light">{meta.label}</Badge></Table.Td>
+                      {canReconcile && <Table.Td>{!['dropped_off', 'absent'].includes(student.status) && <Button size="xs" variant="light" disabled={pickupsOutstanding && ['on_bus', 'arrived_dropoff'].includes(student.status)} title={pickupsOutstanding && ['on_bus', 'arrived_dropoff'].includes(student.status) ? 'Resolve all pickups or school boarding before recording drop-offs.' : undefined} onClick={() => openReconciliation(student)}>Record outcome</Button>}</Table.Td>}
                     </Table.Tr>
                   );
                 })}
               </Table.Tbody>
             </Table>
           </Table.ScrollContainer>
-        ) : <EmptyState message="No students are assigned to this route." />}
+        ) : <EmptyState message={trip.rosterSource === 'recorded_logs' ? 'No roster snapshot or student logs are available for this older trip.' : 'No eligible students are in this trip roster.'} />}
       </Paper>
 
       <Paper withBorder shadow="sm" p="md">
         <Title order={4}>Trip timeline</Title>
-        <Text size="xs" c="dimmed" mb="md">Every event recorded by the driver</Text>
+        <Text size="xs" c="dimmed" mb="md">Events recorded by the driver or authorised school staff</Text>
         {trip.logs.length ? (
           <Stack gap={0}>
             {trip.logs.map((log, index) => (
@@ -266,12 +312,20 @@ const TripDetailsPage = () => {
                     <Text size="xs" c="dimmed">{formatTime(log.timestamp)}</Text>
                   </Group>
                   <Text size="xs" c="dimmed">{log.student ? `${log.student.firstName} ${log.student.lastName}` : 'Student'}{log.notes ? ` • ${log.notes}` : ''}</Text>
+                  {log.recordedBy && <Text size="xs" c="dimmed">Recorded by {log.recordedBy.firstName} {log.recordedBy.lastName} ({log.recordedBy.role.replace(/_/g, ' ')})</Text>}
                 </Box>
               </Group>
             ))}
           </Stack>
         ) : <EmptyState message="No timeline events were recorded." />}
       </Paper>
+      <Modal isOpen={Boolean(reconciliation)} onClose={() => { if (!saving) setReconciliation(null); }} title="Record verified attendance" footer={<><Button variant="default" disabled={saving} onClick={() => setReconciliation(null)}>Cancel</Button><Button disabled={!notes.trim()} loading={saving} onClick={saveReconciliation}>Confirm outcome</Button></>}>
+        {actionError && <Alert color="red">{actionError}</Alert>}
+        <Text fw={700}>{reconciliation?.student.studentName}</Text>
+        <Text size="sm">Verify the actual outcome with the driver or parent. This records attendance under your account and sends the normal trip notifications.</Text>
+        <Select label="Verified outcome" value={reconciliation?.action || null} data={['pending', 'arrived_pickup'].includes(reconciliation?.student.status) ? [{ value: 'check_in', label: 'Student actually boarded' }, { value: 'absent', label: 'Student will not board this trip' }] : [{ value: 'check_out', label: 'Student was safely dropped off' }]} onChange={action => { if (action) setReconciliation(previous => ({ ...previous, action })); }} />
+        <Textarea label="How was this verified?" required maxLength={2000} value={notes} onChange={event => setNotes(event.target.value)} />
+      </Modal>
     </Stack>
   );
 };

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavLink as RouterNavLink, useLocation } from 'react-router-dom';
 import { AppShell, Burger, Group, NavLink, Text, Stack, Avatar, Button, Divider, ScrollArea, Box, Image } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { to: '/routes', label: 'Routes', icon: IconRoute },
   { to: '/trips', label: 'Trips', icon: IconBusStop },
   { to: '/trip-history', label: 'Trip History', icon: IconHistory },
+  { to: '/absences', label: 'Absence Review', icon: IconBackpack },
 ];
 
 // Shared responsive shell: header + collapsible navbar (drawer on mobile).
@@ -27,6 +28,7 @@ const AppLayout = ({ children }) => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const initials = `${user?.firstName?.[0] || ''}${user?.lastName?.[0] || ''}`.toUpperCase();
+  useEffect(() => { document.getElementById('main-content')?.focus({ preventScroll: true }); }, [location.pathname]);
 
   return (
     <AppShell
@@ -34,10 +36,11 @@ const AppLayout = ({ children }) => {
       navbar={{ width: 260, breakpoint: 'sm', collapsed: { mobile: !opened } }}
       padding="md"
     >
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
           <Group gap="xs">
-            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
+            <Burger aria-label={opened ? 'Close navigation' : 'Open navigation'} opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
             <Image
               src="/carribu-logo.jpg"
               alt="Carribu School Transport"
@@ -56,7 +59,7 @@ const AppLayout = ({ children }) => {
         </Group>
       </AppShell.Header>
 
-      <AppShell.Navbar p="md" bg="maroon.7" style={{ borderColor: 'var(--mantine-color-maroon-8)' }}>
+      <AppShell.Navbar aria-label="Main navigation" p="md" bg="carribu.8" style={{ borderColor: 'var(--mantine-color-carribu-9)' }}>
         <AppShell.Section grow component={ScrollArea}>
           <Stack gap={4}>
             {NAV_ITEMS.map(item => {
@@ -68,10 +71,10 @@ const AppLayout = ({ children }) => {
                   to={item.to}
                   label={item.label}
                   leftSection={<Icon size={18} stroke={1.6} />}
-                  active={location.pathname === item.to}
+                  active={location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)}
                   onClick={close}
                   variant="filled"
-                  color="maroon"
+                  color="carribu"
                   className="sidebar-nav-link"
                 />
               );
@@ -97,7 +100,7 @@ const AppLayout = ({ children }) => {
         </AppShell.Section>
       </AppShell.Navbar>
 
-      <AppShell.Main bg="var(--mantine-color-gray-0)">{children}</AppShell.Main>
+      <AppShell.Main id="main-content" tabIndex={-1} bg="var(--mantine-color-gray-0)">{children}</AppShell.Main>
     </AppShell>
   );
 };

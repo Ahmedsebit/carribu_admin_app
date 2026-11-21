@@ -79,7 +79,7 @@ const TripHistoryPage = () => {
       totals.expected += Number(stats.total || 0);
       totals.transported += Number(stats.onBus || 0) + Number(stats.droppedOff || 0);
       totals.absent += Number(stats.absent || 0);
-      totals.unaccounted += Number(stats.pending || 0) + Number(stats.arrived || 0);
+      totals.unaccounted += Number(stats.pending || 0);
       return totals;
     }, { expected: 0, transported: 0, absent: 0, unaccounted: 0 });
 
@@ -178,6 +178,7 @@ const TripHistoryPage = () => {
       </Group>
 
       {error && <Alert color="red" icon={<IconAlertCircle size={16} />}>{error}</Alert>}
+      {trips.some(trip => trip.rosterSource === 'recorded_logs') && <Alert color="yellow">Some older trips have no frozen roster. Their totals count recorded students only, not a reconstructed expected roster.</Alert>}
 
       <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }}>
         {[
